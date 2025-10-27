@@ -22,7 +22,7 @@ The plugin enables automated, reproducible, and cost-efficient mapping of Amazon
 
 ## 🌿 Target Species
 
-| Scientific name | Common name (Spanish and Portuguese) |
+| Scientific name | Common name (Spanish / Portuguese) |
 |------------------|-------------|
 | *Mauritia flexuosa* | aguaje/ buriti |
 | *Euterpe precatoria* | huasai/ acai |
