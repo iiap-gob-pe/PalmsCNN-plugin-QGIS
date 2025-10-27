@@ -77,8 +77,7 @@ package: clean
 		"resources_rc.py" \
 		"metadata.txt" \
 		"icon.png" \
-		"logo.png" \
-		"README.txt" "README.md" "LICENSE" ; do \
+		"logo.png"; do \
 		[ -f "$(PLUGIN_DIR)/$$f" ] && cp -p "$(PLUGIN_DIR)/$$f" "$(BUILD_PLUGIN)/" || true; \
 	done
 

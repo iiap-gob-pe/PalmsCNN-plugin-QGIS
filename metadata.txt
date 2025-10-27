@@ -6,7 +6,7 @@
 name=PalmsCNN - Palm Tree Detection RPAs
 qgisMinimumVersion=3.40
 description=Este plug-in permite detectar automáticamente 3 especies de palmeras en imágenes RGB adquiridas con RPAs:aguaje (Mauritia flexuosa), huasai (Euterpe precautoria) y ungurahui (Oenocarpus bataua). Para obtener buenos resultados, las imágenes deben tener una resolución máxima de 4 cm/píxel.
-version=1.0.0
+version=1.0.1
 author=Susan Palacios, Rodolfo Cardenas, Stephano Torres, Ximena Tagle
 email=rcardenasv@iiap.gob.pe
 

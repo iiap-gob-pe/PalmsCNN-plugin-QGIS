@@ -90,7 +90,6 @@ for %%F in (
   "icon.png"
   "logo.png"
   "README.txt"
-  "README.md"
   "LICENSE"
 ) do (
   if exist "%PLUGIN_DIR%%%~F" copy /y "%PLUGIN_DIR%%%~F" "%BUILD_PLUGIN%\" >nul
