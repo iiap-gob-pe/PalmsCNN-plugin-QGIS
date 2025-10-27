@@ -3,9 +3,9 @@
 # This file should be included when you package your plugin.# Mandatory items:
 
 [general]
-name=PalmsCNN
+name=PalmsCNN - Palm Tree Detection RPAs
 qgisMinimumVersion=3.40
-description=PalmsCNN - Detección de Palmeras. Este plug-in permite detectar automáticamente 3 especies de palmeras en imágenes RGB adquiridas con RPAs:aguaje (Mauritia flexuosa), huasai (Euterpe precautoria) y ungurahui (Oenocarpus bataua). 
+description=Este plug-in permite detectar automáticamente 3 especies de palmeras en imágenes RGB adquiridas con RPAs:aguaje (Mauritia flexuosa), huasai (Euterpe precautoria) y ungurahui (Oenocarpus bataua). 
 version=1.0.0
 author=Susan Palacios, Rodolfo Cardenas, Stephano Torres, Ximena Tagle
 email=rcardenasv@iiap.gob.pe
