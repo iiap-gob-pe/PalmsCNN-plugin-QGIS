@@ -71,6 +71,7 @@ class DeteccionDePalmerasPlugin(object):
 
     def unload(self):
         # Eliminar venv al desinstalar
+        
         try:
             import shutil, os
             from ._env_core import EnvCore
@@ -84,6 +85,7 @@ class DeteccionDePalmerasPlugin(object):
         QgsApplication.processingRegistry().removeProvider(self.provider)
         self.iface.removePluginMenu(u"&Palmeras", self.action)#icon
         self.iface.removeToolBarIcon(self.action)#icon
+        
 
     def run(self):#icon
         # Verificar dependencias antes de ejecutar el algoritmo

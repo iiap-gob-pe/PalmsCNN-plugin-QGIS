@@ -59,7 +59,7 @@ make package        # or make.bat package on Windows
 ## 🌍 Credits
 
 **Instituto de Investigaciones de la Amazonía Peruana (IIAP)**
-*Laboratorio de Inteligencia Artificial para la Conservación y Uso Sostenible de la Amazonía*
+*Laboratorio de Inteligencia Artificial* - Programa BOSQUES
 Iquitos, Peru
 
 Developed by the technical team of the **IIAP**, in collaboration with **OSINFOR**, **SERNANP**, **University of Leeds**, **University of Brescia**, and **Wageningen University**, under the projects *“Supervisiones Optimizadas”* and *“New approaches to understand the state of biodiversity and contribute to social well-being.”*

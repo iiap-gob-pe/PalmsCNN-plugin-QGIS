@@ -2,6 +2,7 @@
 import os, platform
 from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QObject, QProcess, pyqtSignal, QTimer, QProcessEnvironment
+import hashlib, urllib.request, shutil, zipfile, socket
 
 class _SeqRunner(QObject):
     log = pyqtSignal(str)
@@ -27,7 +28,7 @@ class _SeqRunner(QObject):
             p.readAllStandardOutput().data().decode("utf-8","replace").rstrip("\n")
         ))
         p.finished.connect(lambda rc,_s: self._done(p,rc))
-        self._p=p; p.start(argv[0], argv[1:])
+        self._p=p; p.start(argv[0], argv[1:])       
     def _done(self,p,rc):
         self.log.emit(f"[exit code: {rc}]")
         if rc!=0: self.finished.emit(rc)
@@ -113,7 +114,103 @@ class EnvCore:
         env["PIP_NO_BUILD_ISOLATION"] = "1"
         env["PIP_DISABLE_PIP_VERSION_CHECK"] = "1"
         return env
+    
+    def ensure_models(self, log_cb=None):
+        """
+        Verifica/descarga los modelos ONNX después de crear el venv e instalar librerías.
+        Si 'log_cb' se pasa (p. ej., self._append del diálogo), lo usa para loguear; si no, usa print.
+        """
+        log = log_cb or (lambda m: print(m))
+        plugin_dir = os.path.dirname(__file__)
+        trained_dir = os.path.join(plugin_dir, "trained_models")
+        os.makedirs(trained_dir, exist_ok=True)
 
+        # Timeout razonable para descargas
+        socket.setdefaulttimeout(60)
+
+        # 🔗 URLs y SHA-256 publicados en Releases (ajústalos cuando cambies versión)
+        models = {
+            "deeplab": {
+                "filename": "model_deeplabv3_segmentation_v1.onnx",
+                "url": "https://github.com/iiap-gob-pe/PalmsCNN-plugin-QGIS/releases/download/v1.0/model_deeplabv3_segmentation_v1.onnx",
+                "sha256": "3d384dad78b36adeb4b4b5b4b191e7c2bda5d91c9153948780c7fa0ce31ec9bd",
+                "compressed": False,   # True si subes .zip
+            },
+            "converted": {
+                "filename": "model_dwt_instance_segmenetation_v1.onnx",
+                "url": "https://github.com/iiap-gob-pe/PalmsCNN-plugin-QGIS/releases/download/v1.0/model_dwt_instance_segmenetation_v1.onnx",
+                "sha256": "e184b3ca942c2a0cc6117b8586342b715d161cf0beaac030122b5c5e6a676fe8",
+                "compressed": False,   # True si subes .zip
+            },
+        }
+
+        def _sha256(path: str) -> str:
+            h = hashlib.sha256()
+            with open(path, "rb") as f:
+                for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                    h.update(chunk)
+            return h.hexdigest()
+
+        def _download(url: str, dest: str):
+            tmp = dest + ".part"
+            log(f"⬇️  Downloading model from:\n{url}")
+            try:
+                with urllib.request.urlopen(url) as r, open(tmp, "wb") as f:
+                    shutil.copyfileobj(r, f)
+                os.replace(tmp, dest)
+            except Exception as e:
+                try:
+                    if os.path.exists(tmp):
+                        os.remove(tmp)
+                finally:
+                    pass
+                log(f"❌ Error downloading model: {e}")
+                raise
+
+        # Recorre y asegura cada modelo
+        for key, m in models.items():
+            dst = os.path.join(trained_dir, m["filename"])
+
+            # Si ya existe y el hash coincide → OK
+            if os.path.exists(dst):
+                if _sha256(dst).lower() == m["sha256"].lower():
+                    log(f"✅ Model '{m['filename']}' verified.")
+                    continue
+                else:
+                    log(f"⚠️  Hash does not match for {m['filename']}; will be re-downloaded.")
+                    try:
+                        os.remove(dst)
+                    except Exception:
+                        pass
+
+            # Descargar (zip o onnx directo)
+            if m["compressed"]:
+                zip_dst = dst + ".zip"
+                _download(m["url"], zip_dst)
+                try:
+                    with zipfile.ZipFile(zip_dst, "r") as z:
+                        z.extractall(trained_dir)
+                finally:
+                    try:
+                        os.remove(zip_dst)
+                    except Exception:
+                        pass
+            else:
+                _download(m["url"], dst)
+
+            # Verificación final
+            if os.path.exists(dst) and _sha256(dst).lower() == m["sha256"].lower():
+                log(f"✅ Model '{m['filename']}' downloaded and verified correctly.")
+            else:
+                try:
+                    if os.path.exists(dst):
+                        os.remove(dst)
+                except Exception:
+                    pass
+                log(f"❌ SHA-256 verification failed for {m['filename']}")
+
+        log("📦 Model verification completed.")        
+    
     def dll_snippet(self):
         bin_dir,py_dir,dlls_dir,_=self._qgis_paths()
         return f"import os; os.add_dll_directory(r'{bin_dir}'); os.add_dll_directory(r'{dlls_dir}')"
@@ -152,3 +249,5 @@ class EnvCore:
         _, py_dir, _, _ = self._qgis_paths()
         return os.path.join(py_dir, "Lib", "site-packages")
 
+
+ 
