@@ -1,0 +1,3 @@
+onnxruntime
+scikit-image
+# Additional dependencies can be added with explicit version requirements

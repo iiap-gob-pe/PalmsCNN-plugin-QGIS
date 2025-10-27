@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PalmsCNN: Palm Tree Detection - Help</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; color: #333; }
+    h1 { color: #006400; }
+    h2 { color: #228B22; }
+    img { max-width: 100%; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>PalmsCNN: Palm Tree Detection</h1>
+  <p><strong>Version:</strong> 1.3.0 | <strong>Institution:</strong> Instituto de Investigaciones de la Amazonía Peruana (IIAP)</p>
+
+  <h2>Introduction</h2>
+  <p><b>PalmsCNN</b> is a QGIS plugin designed to automatically detect three Amazonian palm species —aguaje (<i>Mauritia flexuosa</i>), huasaí (<i>Euterpe precatoria</i>), and ungurahui (<i>Oenocarpus bataua</i>)— in high-resolution RGB drone imagery.
+  The system uses a convolutional neural network (CNN) model to identify and map palm trees across Amazonian landscapes.</p>
+
+  <img src="images/ui_main.png" alt="Plugin main interface">
+
+  <h2>Installation and Dependencies</h2>
+  <ol>
+    <li>When you run the plugin for the first time, it will automatically create a virtual environment (<code>venv</code>) containing all required libraries: <code>numpy</code>, <code>scikit-image</code>, and <code>onnxruntime</code>.</li>
+    <li>This process requires Internet access only during the first setup.</li>
+    <li>Once the environment is ready, it will be stored locally and reused in future sessions.</li>
+  </ol>
+
+  <h2>Usage</h2>
+  <ol>
+    <li>In QGIS, open <b>Processing → PalmsCNN: Palm Tree Detection</b>.</li>
+    <li>Select an RGB image (drone or high-resolution satellite imagery).</li>
+    <li>Choose the target species or select “All”.</li>
+    <li>Run the algorithm and wait for the detection results.</li>
+    <li>The output layer will display the georeferenced locations of detected palms.</li>
+  </ol>
+
+  <img src="images/result_example.png" alt="Example of detection results">
+
+  <h2>Troubleshooting</h2>
+  <ul>
+    <li><b>Virtual environment not created:</b> Check Internet connection and write permissions in the user folder.</li>
+    <li><b>SSL error:</b> Ensure your QGIS Python interpreter has SSL support (default on Windows and Linux builds).</li>
+    <li><b>Plugin not visible:</b> Make sure you are using QGIS version 3.34 or later.</li>
+  </ul>
+
+  <h2>Credits</h2>
+  <p>Developed by the <strong>Artificial Intelligence Laboratory</strong> - BOSQUES – IIAP, Peru.</p>
+  <p>Authors: Susan Palacios, Rodolfo Cardenas, Stephano Torres, Ximena Tagle</p>
+  <P>Contact: rcardenasv@iiap.gob.pe</P>
+</body>
+</html>

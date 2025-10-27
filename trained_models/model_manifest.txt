@@ -1,0 +1,9 @@
+# Model version manifest
+# Format:
+# model_name: file_hash, version, download_url
+model_deeplabv3_segmentation_v1: 3d384dad78b36adeb4b4b5b4b191e7c2bda5d91c9153948780c7fa0ce31ec9bd, v1.0, https://github.com/iiap-gob-pe/PalmsCNN-plugin-QGIS/releases/download/v1.0/model_deeplabv3_segmentation_v1.onnx
+model_dwt_instance_segmenetation_v1.onnx: e184b3ca942c2a0cc6117b8586342b715d161cf0beaac030122b5c5e6a676fe8, v1.0, https://github.com/iiap-gob-pe/PalmsCNN-plugin-QGIS/releases/download/v1.0/model_dwt_instance_segmenetation_v1.onnx
+
+# Add new models here with version info and download URLs
+# Version history is tracked for reproducibility
+# URLs should point to permanent model storage
