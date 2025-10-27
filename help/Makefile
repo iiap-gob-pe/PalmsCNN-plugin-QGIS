@@ -92,7 +92,7 @@ package: clean
 
 	# 4) help/: copiar pero EXCLUIR help/build y help/dist
 	@[ -d "$(PLUGIN_DIR)/help" ] && mkdir -p "$(BUILD_PLUGIN)/help" && \
-		$(RSYNC) --exclude 'build' --exclude 'dist' "$(PLUGIN_DIR)/help/" "$(BUILD_PLUGIN)/help/" || true
+		$(RSYNC) --exclude 'build' --exclude 'dist' --exclude 'make.bat' --exclude 'Makefile' "$(PLUGIN_DIR)/help/" "$(BUILD_PLUGIN)/help/" || true
 
 	# 5) (Opcional) modelos pre-entrenados
 ifneq ($(INCLUDE_MODELS),0)

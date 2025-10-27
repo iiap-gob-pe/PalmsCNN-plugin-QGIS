@@ -113,7 +113,7 @@ if exist "%PLUGIN_DIR%i18n" (
 REM --- 4) help: copiar excepto build/dist ---
 if exist "%PLUGIN_DIR%help" (
   mkdir "%BUILD_PLUGIN%\help" 2>nul
-  robocopy "%PLUGIN_DIR%help" "%BUILD_PLUGIN%\help" /E /XD "build" "dist" >nul
+  robocopy "%PLUGIN_DIR%help" "%BUILD_PLUGIN%\help" /E /XD "build" "dist" /XF "make.bat" "Makefile" >nul
 )
 
 REM --- 5) (opcional) modelos ---
