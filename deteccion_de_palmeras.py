@@ -71,7 +71,7 @@ class DeteccionDePalmerasPlugin(object):
 
     def unload(self):
         # Eliminar venv al desinstalar
-        
+        '''
         try:
             import shutil, os
             from ._env_core import EnvCore
@@ -82,6 +82,7 @@ class DeteccionDePalmerasPlugin(object):
                 if os.path.isdir(vroot): shutil.rmtree(vroot, ignore_errors=True)
         except Exception:
             pass
+        '''
         QgsApplication.processingRegistry().removeProvider(self.provider)
         self.iface.removePluginMenu(u"&Palmeras", self.action)#icon
         self.iface.removeToolBarIcon(self.action)#icon
