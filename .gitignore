@@ -23,6 +23,7 @@ dist/
 Thumbs.db
 
 # Tests y datos pesados
+*.onnx
 *.tif
 *.tiff
 *.jp2
