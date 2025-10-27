@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+
+# QGIS / build
+build/
+dist/
+*.zip
+*.7z
+*.tar.gz
+
+# IDEs
+.vscode/
+.idea/
+*.iml
+
+# Git / OS
+.DS_Store
+Thumbs.db
+
+# Tests y datos pesados
+*.tif
+*.tiff
+*.jp2
+*.pt
+*.h5
+data/
+notebooks/
+
+# Entornos
+.venv/
+venv/
+env/
