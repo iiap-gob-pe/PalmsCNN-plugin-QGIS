@@ -38,7 +38,9 @@ class EnvCore:
     def __init__(self, plugin_name):
         self.plugin_name=plugin_name
         self.profile_root=QgsApplication.qgisSettingsDirPath()
-        self.venv_path=os.path.join(self.profile_root,"python","venvs",plugin_name)
+        #self.venv_path=os.path.join(self.profile_root,"python","venvs",plugin_name)
+        plugin_dir = os.path.dirname(__file__)
+        self.venv_path=os.path.join(plugin_dir, "trained_models")
         if platform.system().lower().startswith("win"):
             self.venv_python=os.path.join(self.venv_path,"Scripts","python.exe")
         else:
