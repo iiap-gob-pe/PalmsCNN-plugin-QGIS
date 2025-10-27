@@ -20,7 +20,7 @@ The plugin enables automated, reproducible, and cost-efficient mapping of Amazon
 
 ---
 
-## 🌿 Target Species
+## 🌴 Target Palm Species
 
 | Scientific name | Common name (Spanish / Portuguese) |
 |------------------|-------------|
@@ -59,13 +59,9 @@ make package        # or make.bat package on Windows
 ---
 ## 🌍 Credits
 
-**Instituto de Investigaciones de la Amazonía Peruana (IIAP)**
-*Laboratorio de Inteligencia Artificial para la Conservación y Uso Sostenible de la Amazonía*
-Iquitos, Peru
+Co-developed by **IIAP**, **OSINFOR**, **SERNANP**, **University of Brescia**, **Wageningen University** and **University of Leeds** within the framework of the projects *“Supervisiones Optimizadas”* and *“New approaches to understand the state of biodiversity and contribute to social well-being.”*
 
-Co-developed by the technical team of the **IIAP**, in collaboration with **OSINFOR**, **SERNANP**, **University of Leeds**, **University of Brescia**, and **Wageningen University**, under the projects *“Supervisiones Optimizadas”* and *“New approaches to understand the state of biodiversity and contribute to social well-being.”*
-
-Funding provided by **Newton Fund**, **FONDECYT**, **WWF**, **GIZ**, and **USAID**.
+Funding provided by **Newton Fund**, **Embajada Britanica Lima**, **FONDECYT PERU**, **WWF - Russel E. Train Education for Nature Programme (EFN)**, **GIZ**, and **USAID**.
 
 ---
 
@@ -80,6 +76,7 @@ This project is distributed under the [MIT License](./LICENSE).
 
 ## 🔗 References
 
+* Palacios, S. (2020). Aguaje QGIS plugin: Tool for detecting Mauritia flexuosa (Aguaje) palms in raster aerial images (Master’s thesis). University of Brescia, Italy.
 * Tagle Casapia, X., Cardenas-Vigo, R., Marcos, D. et al. (2025) *Effective integration of drone technology for mapping and managing palm species in the Peruvian Amazon*. **Nature Communications**. [https://doi.org/10.1038/s41467-025-58358-5](https://doi.org/10.1038/s41467-025-58358-5)
 * QGIS Documentation — [https://docs.qgis.org](https://docs.qgis.org)
 * ONNX Runtime — [https://onnxruntime.ai](https://onnxruntime.ai)
@@ -91,7 +88,7 @@ This project is distributed under the [MIT License](./LICENSE).
 
 If you use the QGIS plugin **Palms Detection RPAs**, please cite:
 
-> Palacios, S., Tagle, X, Falen, L., Minhuey. A., Torres, S., Baker, T., Fernandez, E., Allcahuaman, E., Campos, L., Adami, N., Signoroni, A. Cárdenas, R. (2025).
+> Palacios, S., Tagle, X, Falen, L., Minhuey. A., Torres, S., Baker, T., Fernandez, E., Allcahuaman, E., Campos, L., Adami, N., Signoroni, A. Cárdenas, R. (in prep).
 > *Stakeholder driven Development of a Deep Learning-Based QGIS Plugin for Identifying Palm Trees in Tropical Forests*
 > Available at: [https://github.com/iiap-gob-pe/PalmsCNN-plugin-QGIS](https://github.com/iiap-gob-pe/PalmsCNN-plugin-QGIS)
 > Contact: [rcardenasv@iiap.gob.pe](mailto:rcardenasv@iiap.gob.pe)
