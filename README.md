@@ -74,7 +74,7 @@ The plugin enables automated, reproducible, and cost-efficient mapping of Amazon
 - **Summary Report (.csv)**  
   Summary statistics including:  
   - Number of detected palms per species  
-  - Total area (m²) occupied by each species  
+  - Total area (m²) occupied by species  
   - Overall total number of detected palms
 ---
 
@@ -101,6 +101,10 @@ Co-developed by **IIAP**, **OSINFOR**, **SERNANP**, **University of Brescia**, *
 
 Funding provided by **Newton Fund**, **Embajada Britanica Lima**, **FONDECYT PERU**, **WWF - Russel E. Train Education for Nature Programme (EFN)**, **GIZ**, and **USAID**.
 
+Maintained by the **Instituto de Investigaciones de la Amazonía Peruana (IIAP)**
+*Laboratorio de Inteligencia Artificial* - Programa BOSQUES
+Iquitos, Peru
+
 ---
 
 ## 🧾 License
@@ -126,8 +130,7 @@ This project is distributed under the [MIT License](./LICENSE).
 
 If you use the QGIS plugin **Palms Detection RPAs**, please cite:
 
-> Palacios, S., Tagle, X, Falen, L., Minhuey. A., Torres, S., Baker, T., Fernandez, E., Allcahuaman, E., Campos, L., Adami, N., Signoroni, A. Cárdenas, R. (in prep).
-> *Stakeholder driven Development of a Deep Learning-Based QGIS Plugin for Identifying Palm Trees in Tropical Forests*
+> Palacios, S., Tagle, X, Falen, L., Minhuey. A., Torres, S., Baker, T., Fernandez, E., Allcahuaman, E., Campos, L., Adami, N., Signoroni, A. Cárdenas, R. (in prep). *Stakeholder driven Development of a Deep Learning-Based QGIS Plugin for Identifying Palm Trees in Tropical Forests*
 > Available at: [https://github.com/iiap-gob-pe/PalmsCNN-plugin-QGIS](https://github.com/iiap-gob-pe/PalmsCNN-plugin-QGIS)
 > Contact: [rcardenasv@iiap.gob.pe](mailto:rcardenasv@iiap.gob.pe)
 >
