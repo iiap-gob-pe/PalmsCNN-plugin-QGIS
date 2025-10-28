@@ -48,6 +48,11 @@ The plugin enables automated, reproducible, and cost-efficient mapping of Amazon
   Select an RGB orthomosaic image in `.tif` format.  
   This georeferenced image serves as the main input for palm detection and classification.
 
+
+- **Output Folder and Filename**  
+  Specify the folder path and name for the **output georeferenced classified raster**.  
+  This folder will also serve as the **working directory** for all generated outputs.
+
 **Outputs**
 
 - **Output Raster**  
