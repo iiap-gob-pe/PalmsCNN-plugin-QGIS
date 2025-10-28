@@ -43,7 +43,7 @@ The plugin enables automated, reproducible, and cost-efficient mapping of Amazon
 ## 📦 Installation
 
 ### 🔹 From ZIP (for end users)
-1. Download the latest release from [Releases](../../releases).  
+1. Download the latest release from [Releases](https://plugins.qgis.org/plugins/deteccion_de_palmeras).  
 2. In QGIS, open:  
    `Plugins → Manage and Install Plugins → Install from ZIP`.  
 3. Select the file:  
@@ -56,6 +56,12 @@ git clone https://github.com/iiap-gob-pe/PalmsCNN-plugin-QGIS.git
 d PalmsCNN-plugin-QGIS/deteccion_de_palmeras/help
 make package        # or make.bat package on Windows
 ```
+---
+## ✅ User Manual
+Please download the user manual by clicking the provided [link](help/ManualdeUsuarioV5_ONNX.pdf).
+---
+## 📊 Sample Data
+The test data for testing can be downloaded by clicking the provided [link](https://drive.usercontent.google.com/download?id=1CAYRc3tex1gdyPG8l4pLzq6qgGl1fvT8&export=download).
 ---
 ## 🌍 Credits
 
