@@ -40,6 +40,39 @@ The plugin enables automated, reproducible, and cost-efficient mapping of Amazon
 - Automatic setup of a Python **virtual environment (venv)** for dependencies.  
 ---
 
+## 🧩 Inputs and Outputs
+
+**Inputs**
+
+- **Input Raster**  
+  Select an RGB orthomosaic image in `.tif` format.  
+  This georeferenced image serves as the main input for palm detection and classification.
+
+**Outputs**
+
+- **Output Raster**  
+  A georeferenced classified image showing the detected palm crowns labeled by species.
+
+- **Output Vector (Shapefile)**  
+  A vector layer (`.shp`) containing polygons for each detected palm crown.
+
+- **Centroid Layer**  
+  A point vector layer showing the centroid (center coordinates) of each detected palm.
+
+- **Attributes Table (.csv)**  
+  A table containing detailed information for each detected palm:  
+  - `id` → Unique palm identifier  
+  - `class_species` → Predicted species (`Mauritia flexuosa`, `Euterpe precatoria`, `Oenocarpus bataua`)  
+  - `area_m2` → Area of the palm crown (in square meters)  
+  - `utm_x`, `utm_y` → UTM coordinates of the palm centroid  
+
+- **Summary Report (.csv)**  
+  Summary statistics including:  
+  - Number of detected palms per species  
+  - Total area (m²) occupied by each species  
+  - Overall total number of detected palms
+---
+
 ## 📦 Installation
 
 ### 🔹 From ZIP (for end users)
