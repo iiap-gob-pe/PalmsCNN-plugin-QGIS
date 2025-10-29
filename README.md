@@ -136,7 +136,7 @@ This project is distributed under the [MIT License](./LICENSE).
 
 If you use the QGIS plugin **Palms Detection RPAs**, please cite:
 
-> Palacios, S., Tagle, X, Falen, L., Minhuey. A., Torres, S., Baker, T., Fernandez, E., Allcahuaman, E., Campos, L., Adami, N., Signoroni, A. Cárdenas, R. (in prep). *Stakeholder driven Development of a Deep Learning-Based QGIS Plugin for Identifying Palm Trees in Tropical Forests*
+> Palacios, S., Tagle, X, Falen, L., Di Liberto, S., Minhuey. A., Torres, S., Baker, T., Fernandez, E., Allcahuaman, E., Campos, L., Adami, N., Signoroni, A. Cárdenas, R. (in prep). *Stakeholder driven Development of a Deep Learning-Based QGIS Plugin for Identifying Palm Trees in Tropical Forests*
 > Available at: [https://github.com/iiap-gob-pe/PalmsCNN-plugin-QGIS](https://github.com/iiap-gob-pe/PalmsCNN-plugin-QGIS)
 > Contact: [rcardenasv@iiap.gob.pe](mailto:rcardenasv@iiap.gob.pe)
 >
