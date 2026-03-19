@@ -36,3 +36,6 @@ notebooks/
 .venv/
 venv/
 env/
+
+# Claude
+.claude/
