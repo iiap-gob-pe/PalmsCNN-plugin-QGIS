@@ -30,6 +30,14 @@ The plugin enables automated, reproducible, and cost-efficient mapping of Amazon
 
 ---
 
+## 🏗️ Plugin Architecture
+
+<p align="center">
+  <img src="help/images/architecture.svg" alt="PalmsCNN Plugin Architecture" width="850"/>
+</p>
+
+---
+
 ## ⚙️ Key Features
 
 - Automatic palm detection from **RPAs RGB imagery** (no multispectral data required, nor canopy heights, only simple RGB images).  

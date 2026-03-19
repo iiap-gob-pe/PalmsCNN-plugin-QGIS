@@ -1,0 +1,200 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 740" font-family="Segoe UI, Arial, sans-serif" font-size="13">
+  <defs>
+    <filter id="shadow" x="-4%" y="-4%" width="108%" height="108%">
+      <feDropShadow dx="1" dy="1" stdDeviation="2" flood-opacity="0.10"/>
+    </filter>
+    <style>
+      .box { rx: 8; ry: 8; stroke-width: 1.5; filter: url(#shadow); }
+      .group { rx: 12; ry: 12; fill: none; stroke-dasharray: 7 4; stroke-width: 1.8; }
+      .label { font-weight: 700; font-size: 15px; }
+      .sublabel { font-weight: 600; font-size: 13px; }
+      .link { stroke: #555; stroke-width: 1.6; fill: none; marker-end: url(#arrow); }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#555"/>
+    </marker>
+  </defs>
+
+  <!-- ============ PLUGIN ICON (palm tree) ============ -->
+  <g transform="translate(26, 295)">
+    <path d="M20 70 Q22 50 18 30 Q16 20 20 10" stroke="#8d6e63" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <path d="M20 12 Q8 -5 -5 0" stroke="#4caf50" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M20 12 Q32 -5 45 0" stroke="#4caf50" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M20 10 Q5 5 -2 15" stroke="#66bb6a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M20 10 Q35 5 42 15" stroke="#66bb6a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M20 8 Q20 -8 20 -5" stroke="#388e3c" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <rect x="10" y="70" width="20" height="12" rx="3" fill="#a5d6a7" stroke="#66bb6a" stroke-width="1.2"/>
+  </g>
+  <text x="46" y="393" text-anchor="middle" class="label" font-size="14" fill="#2e7d32">PalmsCNN</text>
+  <text x="46" y="409" text-anchor="middle" font-size="11" fill="#555">QGIS Plugin</text>
+
+  <!-- arrow from icon to GUI -->
+  <path d="M76 330 Q97 250 118 170" class="link" fill="none"/>
+  <!-- arrow from icon to PROCESSING -->
+  <path d="M76 370 Q97 430 118 470" class="link" fill="none"/>
+
+  <!-- ==================== GUI GROUP ==================== -->
+  <rect x="120" y="30" width="560" height="260" class="group" stroke="#7a7a7a"/>
+  <text x="140" y="55" class="label" fill="#555">GUI</text>
+
+  <!-- __init__.py (classFactory) - entry point -->
+  <rect x="145" y="70" width="200" height="42" class="box" fill="#e8f5e9" stroke="#81c784"/>
+  <text x="245" y="90" text-anchor="middle" class="sublabel" fill="#2e7d32">__init__.py</text>
+  <text x="245" y="105" text-anchor="middle" font-size="10" fill="#43a047">classFactory()</text>
+
+  <!-- deteccion_de_palmeras.py - main plugin class -->
+  <rect x="145" y="130" width="200" height="42" class="box" fill="#e8f5e9" stroke="#81c784"/>
+  <text x="245" y="150" text-anchor="middle" class="sublabel" fill="#2e7d32">deteccion_de_palmeras</text>
+  <text x="245" y="165" text-anchor="middle" font-size="10" fill="#43a047">Plugin class + UI</text>
+
+  <!-- arrow __init__ → main plugin -->
+  <line x1="245" y1="112" x2="245" y2="128" class="link"/>
+
+  <!-- GUI Helpers sub-group -->
+  <rect x="390" y="55" width="270" height="220" class="group" stroke="#aaa"/>
+  <text x="410" y="78" class="sublabel" fill="#777">GUI Helpers</text>
+
+  <!-- palmeras_dependency.py -->
+  <rect x="415" y="92" width="220" height="48" class="box" fill="#fff9c4" stroke="#fdd835"/>
+  <text x="525" y="112" text-anchor="middle" class="sublabel" fill="#827717">palmeras_dependency</text>
+  <text x="525" y="129" text-anchor="middle" font-size="10" fill="#9e9d24">Dependencies dialog (modal)</text>
+
+  <!-- _env_core.py -->
+  <rect x="415" y="155" width="220" height="48" class="box" fill="#fff9c4" stroke="#fdd835"/>
+  <text x="525" y="175" text-anchor="middle" class="sublabel" fill="#827717">_env_core</text>
+  <text x="525" y="192" text-anchor="middle" font-size="10" fill="#9e9d24">Venv manager + Model downloader</text>
+
+  <!-- arrow main plugin → dependency dialog -->
+  <line x1="345" y1="151" x2="413" y2="116" class="link"/>
+
+  <!-- arrow dependency → _env_core -->
+  <line x1="525" y1="140" x2="525" y2="153" class="link"/>
+
+  <!-- ==================== PROCESSING GROUP ==================== -->
+  <rect x="120" y="330" width="560" height="370" class="group" stroke="#7a7a7a"/>
+  <text x="140" y="355" class="label" fill="#555">PROCESSING</text>
+
+  <!-- deteccion_de_palmeras_provider -->
+  <rect x="145" y="368" width="220" height="42" class="box" fill="#ffcdd2" stroke="#e57373"/>
+  <text x="255" y="384" text-anchor="middle" font-size="12" fill="#c62828">deteccion_de_palmeras</text>
+  <text x="255" y="400" text-anchor="middle" font-size="10" fill="#e53935">_provider (registers algo)</text>
+
+  <!-- deteccion_de_palmeras_algorithm -->
+  <rect x="145" y="425" width="220" height="42" class="box" fill="#ffcdd2" stroke="#e57373"/>
+  <text x="255" y="441" text-anchor="middle" font-size="12" fill="#c62828">deteccion_de_palmeras</text>
+  <text x="255" y="457" text-anchor="middle" font-size="10" fill="#e53935">_algorithm (orchestrator)</text>
+
+  <!-- arrow provider → algorithm -->
+  <line x1="255" y1="410" x2="255" y2="423" class="link"/>
+
+  <!-- arrow GUI main → provider -->
+  <line x1="245" y1="172" x2="255" y2="366" class="link"/>
+
+  <!-- palmeras_algo sub-group -->
+  <rect x="140" y="490" width="250" height="190" class="group" stroke="#aaa"/>
+  <text x="160" y="513" class="sublabel" fill="#777">palmeras_algo (runs in venv)</text>
+
+  <rect x="165" y="525" width="200" height="42" class="box" fill="#e3f2fd" stroke="#64b5f6"/>
+  <text x="265" y="542" text-anchor="middle" class="sublabel" fill="#1565c0">palmeras_deteccion</text>
+  <text x="265" y="558" text-anchor="middle" font-size="10" fill="#5c6bc0">ML orchestrator</text>
+
+  <rect x="165" y="580" width="200" height="34" class="box" fill="#e3f2fd" stroke="#64b5f6"/>
+  <text x="265" y="602" text-anchor="middle" class="sublabel" fill="#1565c0">apply_model (DeepLabv3)</text>
+
+  <rect x="165" y="626" width="200" height="34" class="box" fill="#e3f2fd" stroke="#64b5f6"/>
+  <text x="265" y="648" text-anchor="middle" class="sublabel" fill="#1565c0">apply_model_dwt (DWT)</text>
+
+  <!-- palmerasqgis_algo sub-group -->
+  <rect x="415" y="490" width="250" height="150" class="group" stroke="#aaa"/>
+  <text x="435" y="513" class="sublabel" fill="#777">palmerasqgis_algo</text>
+
+  <rect x="440" y="528" width="200" height="42" class="box" fill="#e3f2fd" stroke="#64b5f6"/>
+  <text x="540" y="545" text-anchor="middle" class="sublabel" fill="#1565c0">palmeras_qgis_count</text>
+  <text x="540" y="562" text-anchor="middle" font-size="10" fill="#5c6bc0">Polygons + Centroids + CSV</text>
+
+  <rect x="440" y="584" width="200" height="42" class="box" fill="#e3f2fd" stroke="#64b5f6"/>
+  <text x="540" y="601" text-anchor="middle" class="sublabel" fill="#1565c0">palmeras_qgis_clas</text>
+  <text x="540" y="618" text-anchor="middle" font-size="10" fill="#5c6bc0">Area calc + Summary Report</text>
+
+  <!-- algorithm → palmeras_algo -->
+  <line x1="240" y1="467" x2="240" y2="523" class="link"/>
+  <!-- algorithm → palmerasqgis_algo -->
+  <line x1="365" y1="450" x2="438" y2="549" class="link"/>
+
+  <!-- ==================== DEPENDENCIES GROUP ==================== -->
+  <rect x="720" y="340" width="220" height="360" class="group" stroke="#7a7a7a"/>
+  <text x="740" y="365" class="label" fill="#555">Dependencies</text>
+
+  <rect x="745" y="385" width="170" height="34" class="box" fill="#e8eaf6" stroke="#7986cb"/>
+  <text x="830" y="407" text-anchor="middle" class="sublabel" fill="#283593">ONNX Runtime</text>
+
+  <rect x="745" y="430" width="170" height="34" class="box" fill="#e8eaf6" stroke="#7986cb"/>
+  <text x="830" y="452" text-anchor="middle" class="sublabel" fill="#283593">scikit-image</text>
+
+  <rect x="745" y="475" width="170" height="34" class="box" fill="#e8eaf6" stroke="#7986cb"/>
+  <text x="830" y="497" text-anchor="middle" class="sublabel" fill="#283593">SciPy</text>
+
+  <rect x="745" y="520" width="170" height="34" class="box" fill="#e8eaf6" stroke="#7986cb"/>
+  <text x="830" y="542" text-anchor="middle" class="sublabel" fill="#283593">NumPy</text>
+
+  <rect x="745" y="565" width="170" height="34" class="box" fill="#e8eaf6" stroke="#7986cb"/>
+  <text x="830" y="587" text-anchor="middle" class="sublabel" fill="#283593">GDAL / OGR</text>
+
+  <rect x="745" y="610" width="170" height="34" class="box" fill="#e8eaf6" stroke="#7986cb"/>
+  <text x="830" y="632" text-anchor="middle" class="sublabel" fill="#283593">PyQt5 (QGIS)</text>
+
+  <rect x="745" y="655" width="170" height="34" class="box" fill="#e8eaf6" stroke="#7986cb"/>
+  <text x="830" y="677" text-anchor="middle" class="sublabel" fill="#283593">QGIS Processing</text>
+
+  <!-- ==================== MODELS GROUP ==================== -->
+  <rect x="720" y="100" width="220" height="200" class="group" stroke="#7a7a7a"/>
+  <text x="740" y="125" class="label" fill="#555">Trained Models (ONNX)</text>
+
+  <rect x="745" y="140" width="170" height="48" class="box" fill="#fce4ec" stroke="#ef9a9a"/>
+  <text x="830" y="160" text-anchor="middle" font-size="11.5" fill="#b71c1c">DeepLabv3</text>
+  <text x="830" y="178" text-anchor="middle" font-size="10" fill="#c62828">Semantic Segmentation</text>
+
+  <rect x="745" y="202" width="170" height="48" class="box" fill="#fce4ec" stroke="#ef9a9a"/>
+  <text x="830" y="222" text-anchor="middle" font-size="11.5" fill="#b71c1c">DWT Instance</text>
+  <text x="830" y="240" text-anchor="middle" font-size="10" fill="#c62828">Instance Segmentation</text>
+
+  <rect x="745" y="261" width="170" height="20" rx="4" ry="4" fill="#fff3e0" stroke="#ffb74d" stroke-width="1.2"/>
+  <text x="830" y="275" text-anchor="middle" font-size="10" fill="#e65100">SHA-256 verified</text>
+
+  <!-- ==================== CONNECTING ARROWS ==================== -->
+
+  <!-- Processing algo → Dependencies -->
+  <line x1="680" y1="570" x2="743" y2="540" class="link"/>
+
+  <!-- palmeras_algo → Models (uses them) -->
+  <path d="M365 590 Q550 430 743 200" class="link" fill="none"/>
+
+  <!-- _env_core → Dependencies (installs them, dashed) -->
+  <path d="M635 179 Q700 300 743 400" fill="none" stroke-dasharray="5 3" stroke="#888" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <!-- _env_core → Models (downloads them, dashed) -->
+  <path d="M635 179 Q690 170 743 164" fill="none" stroke-dasharray="5 3" stroke="#888" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <!-- ==================== LEGEND ==================== -->
+  <rect x="120" y="718" width="12" height="12" rx="2" fill="#e8f5e9" stroke="#81c784" stroke-width="1"/>
+  <text x="137" y="729" font-size="10" fill="#555">GUI</text>
+
+  <rect x="180" y="718" width="12" height="12" rx="2" fill="#fff9c4" stroke="#fdd835" stroke-width="1"/>
+  <text x="197" y="729" font-size="10" fill="#555">GUI Helpers</text>
+
+  <rect x="275" y="718" width="12" height="12" rx="2" fill="#ffcdd2" stroke="#e57373" stroke-width="1"/>
+  <text x="292" y="729" font-size="10" fill="#555">Processing</text>
+
+  <rect x="370" y="718" width="12" height="12" rx="2" fill="#e3f2fd" stroke="#64b5f6" stroke-width="1"/>
+  <text x="387" y="729" font-size="10" fill="#555">Algorithms</text>
+
+  <rect x="460" y="718" width="12" height="12" rx="2" fill="#e8eaf6" stroke="#7986cb" stroke-width="1"/>
+  <text x="477" y="729" font-size="10" fill="#555">Dependencies</text>
+
+  <rect x="570" y="718" width="12" height="12" rx="2" fill="#fce4ec" stroke="#ef9a9a" stroke-width="1"/>
+  <text x="587" y="729" font-size="10" fill="#555">Models</text>
+
+  <line x1="650" y1="724" x2="680" y2="724" stroke="#888" stroke-width="1.4" stroke-dasharray="5 3"/>
+  <text x="685" y="729" font-size="10" fill="#555">Auto-setup (install/download)</text>
+
+</svg>
