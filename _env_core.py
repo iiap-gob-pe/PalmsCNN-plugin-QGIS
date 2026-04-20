@@ -2,7 +2,20 @@
 import os, platform
 from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QObject, QProcess, pyqtSignal, QTimer, QProcessEnvironment
-import hashlib, urllib.request, shutil, zipfile, socket
+import hashlib, urllib.request, urllib.parse, shutil, zipfile, socket
+
+_ALLOWED_URL_SCHEMES = ("https",)
+_ALLOWED_URL_HOSTS = ("github.com", "objects.githubusercontent.com")
+
+
+def _safe_urlopen(url, timeout=60):
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in _ALLOWED_URL_SCHEMES:
+        raise ValueError(f"Rejected URL scheme: {parsed.scheme!r}")
+    if parsed.hostname not in _ALLOWED_URL_HOSTS:
+        raise ValueError(f"Rejected URL host: {parsed.hostname!r}")
+    req = urllib.request.Request(url, method="GET")
+    return urllib.request.urlopen(req, timeout=timeout)  # nosec B310 - scheme/host validated above
 
 class _SeqRunner(QObject):
     log = pyqtSignal(str)
@@ -135,13 +148,13 @@ class EnvCore:
             "deeplab": {
                 "filename": "model_deeplabv3_segmentation_v1.onnx",
                 "url": "https://github.com/iiap-gob-pe/PalmsCNN-plugin-QGIS/releases/download/v1.0/model_deeplabv3_segmentation_v1.onnx",
-                "sha256": "3d384dad78b36adeb4b4b5b4b191e7c2bda5d91c9153948780c7fa0ce31ec9bd",
+                "sha256": "3d384dad78b36adeb4b4b5b4b191e7c2bda5d91c9153948780c7fa0ce31ec9bd",  # pragma: allowlist secret
                 "compressed": False,   # True si subes .zip
             },
             "converted": {
                 "filename": "model_dwt_instance_segmenetation_v1.onnx",
                 "url": "https://github.com/iiap-gob-pe/PalmsCNN-plugin-QGIS/releases/download/v1.0/model_dwt_instance_segmenetation_v1.onnx",
-                "sha256": "e184b3ca942c2a0cc6117b8586342b715d161cf0beaac030122b5c5e6a676fe8",
+                "sha256": "e184b3ca942c2a0cc6117b8586342b715d161cf0beaac030122b5c5e6a676fe8",  # pragma: allowlist secret
                 "compressed": False,   # True si subes .zip
             },
         }
@@ -157,7 +170,7 @@ class EnvCore:
             tmp = dest + ".part"
             log(f"⬇️  Downloading model from:\n{url}")
             try:
-                with urllib.request.urlopen(url) as r, open(tmp, "wb") as f:
+                with _safe_urlopen(url) as r, open(tmp, "wb") as f:
                     shutil.copyfileobj(r, f)
                 os.replace(tmp, dest)
             except Exception as e:
