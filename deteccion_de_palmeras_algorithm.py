@@ -236,7 +236,16 @@ class DeteccionDePalmerasAlgorithm(QgsProcessingAlgorithm):
 
         _env = EnvCore(plugin_name="deteccion_de_palmeras_env")
         if not _env.venv_exists():
-            raise RuntimeError("El entorno aislado no está preparado. Abre 'Dependencias' y créalo primero.")
+            raise RuntimeError(
+                "El entorno aislado no está preparado (falta {}). "
+                "Abre 'Dependencias' y créalo primero.".format(_env.venv_python)
+            )
+        if not _env.models_ready():
+            raise RuntimeError(
+                "Faltan los modelos ONNX en {}. "
+                "Abre 'Dependencias' y pulsa 'Prepare environment' para descargarlos."
+                .format(_env.models_dir())
+            )
 
         # --- Preparar script a ejecutar en el venv ---
         import tempfile, json

@@ -103,10 +103,16 @@ class EnvCore:
         # El .pth irá en el site-packages del venv (detectado en tiempo de ejecución)
         qgis_sp = self.qgis_site_packages().replace("\\", "/")
 
+        # OJO: site.getsitepackages()[0] es la RAIZ del venv en Windows, y ahi los .pth
+        # se ignoran (solo se procesan dentro de site-packages). sysconfig purelib da la
+        # carpeta correcta en Windows y en POSIX.
         create_pth = (
-            "import sys,site,os;"
+            "import sys,os,sysconfig;"
             f"qgis_sp=r'{qgis_sp}';"
-            "venv_sp = site.getsitepackages()[0];"
+            "venv_sp = sysconfig.get_paths()['purelib'];"
+            "os.makedirs(venv_sp, exist_ok=True);"
+            "stale = os.path.join(sys.prefix, 'osgeo_qgis.pth');"
+            "os.path.exists(stale) and os.remove(stale);"
             "pth = os.path.join(venv_sp, 'osgeo_qgis.pth');"
             "open(pth,'w',encoding='utf-8').write(qgis_sp + '\\n');"
             "print('Wrote', pth)"
