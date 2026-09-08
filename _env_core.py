@@ -27,9 +27,11 @@ class _SeqRunner(QObject):
     def __init__(self, parent=None, env_vars=None):
         super().__init__(parent)
         self._cmds=[]; self._idx=-1; self._p=None; self._env=env_vars or {}
-        self._aborted=False
+        self._aborted=False; self._active=False
     def start(self, commands):
-        self._cmds=list(commands); self._idx=-1; self._aborted=False; self._next()
+        self._cmds=list(commands); self._idx=-1
+        self._aborted=False; self._active=True
+        self._next()
     def _apply_env(self, p:QProcess):
         if not self._env: return
         # Se construye desde cero (NO desde systemEnvironment) para que las variables
@@ -40,9 +42,11 @@ class _SeqRunner(QObject):
         for k,v in self._env.items(): env.insert(k,v)
         p.setProcessEnvironment(env)
     def _next(self):
+        if self._aborted: return          # cancelado mientras el paso estaba encolado
         if self._p: self._p.deleteLater(); self._p=None
         self._idx+=1
-        if self._idx>=len(self._cmds): self.finished.emit(0); return
+        if self._idx>=len(self._cmds):
+            self._active=False; self.finished.emit(0); return
         argv=self._cmds[self._idx]; self.log.emit("\n$ "+" ".join(argv)+"\n")
         p=QProcess(); self._apply_env(p)
         p.setProcessChannelMode(QProcess.MergedChannels)
@@ -52,17 +56,31 @@ class _SeqRunner(QObject):
         p.finished.connect(lambda rc,_s: self._done(p,rc))
         p.errorOccurred.connect(lambda e: self._error(p,e))
         self._p=p; p.start(argv[0], argv[1:])
+    def is_running(self):
+        # La secuencia sigue viva aunque justo ahora no haya proceso: entre comandos
+        # _next() esta encolado en un QTimer.
+        return self._active
+    def cancel(self):
+        """Corta la secuencia y mata el proceso en curso. Se usa kill() y no terminate()
+        porque pip en Windows no atiende la peticion suave."""
+        if not self._active: return
+        self._aborted=True; self._active=False
+        p=self._p
+        if p is not None and p.state()!=QProcess.NotRunning:
+            p.kill(); p.waitForFinished(5000)
+        self.log.emit("[cancelled]")
+        self.finished.emit(-1)
     def _error(self,p,err):
         # FailedToStart no emite finished(): hay que cortar la secuencia a mano.
         if err==QProcess.FailedToStart and not self._aborted:
-            self._aborted=True
+            self._aborted=True; self._active=False
             self.log.emit(f"[could not start: {p.program()}]")
             self.finished.emit(1)
     def _done(self,p,rc):
         if self._aborted: return
         self.log.emit(f"[exit code: {rc}]")
         if rc!=0:
-            self._aborted=True; self.finished.emit(rc)
+            self._aborted=True; self._active=False; self.finished.emit(rc)
         else: QTimer.singleShot(10, self._next)
 
 class EnvCore:

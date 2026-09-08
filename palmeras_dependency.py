@@ -59,7 +59,8 @@ class DependenciesDialog(QDialog):
         self.log.setPlaceholderText("Exit from the process...")
         v.addWidget(self.log, 1)
 
-        # Hilo de descarga de modelos (ver _start_models)
+        # Trabajo en curso: secuencia de procesos (venv + pip) e hilo de modelos
+        self._runner = None
         self._thread = None
         self._worker = None
 
@@ -93,20 +94,45 @@ class DependenciesDialog(QDialog):
             return
 
         cmds = _env.numpy2_stack_commands()
-        runner = _env.make_seq_runner(parent=self, log_slot=self._append)
+        self._runner = _env.make_seq_runner(parent=self, log_slot=self._append)
 
         def finished(rc: int):
+            self._runner = None
             if rc == 0:
                 self._append("✅ Environment set up correctly.")
                 self._start_models()
+                return
+            self._set_cancel_button(False)
+            self.btn_prep.setEnabled(True)
+            if rc == -1:                      # cancelado por el usuario
+                self._append("🛑 Preparation cancelled. The environment is incomplete; "
+                             "press ‘Prepare environment’ to finish it.")
             else:
                 self._append(f"❌ Error during preparation (exit {rc}).")
-                self.btn_prep.setEnabled(True)
                 QMessageBox.warning(self, "Error", "Falló la creación del entorno. Revisa el log.")
 
-        runner.finished.connect(finished)
+        self._runner.finished.connect(finished)
         self._append("⏳ Starting to create the environment…")
-        runner.start(cmds)
+        self._set_cancel_button(True)
+        self._runner.start(cmds)
+
+    # ---------------- estado ocupado / cancelacion ----------------
+
+    def _set_cancel_button(self, busy: bool):
+        self.btn_close.setText("Cancel" if busy else "Close")
+
+    def _runner_running(self) -> bool:
+        return self._runner is not None and self._runner.is_running()
+
+    def _busy(self) -> bool:
+        return self._runner_running() or self._models_running()
+
+    def _stop_all(self):
+        """Cancela lo que esté corriendo y espera a que termine de verdad."""
+        if self._runner_running():
+            self._append("🛑 Cancelling…")
+            self._runner.cancel()
+        self._stop_models()
 
     # ---------------- descarga de modelos en segundo plano ----------------
 
@@ -122,7 +148,7 @@ class DependenciesDialog(QDialog):
         self.progress.setVisible(True)
         self.progress.setRange(0, 0)          # indeterminada hasta conocer el tamaño
         self.progress.setFormat("Starting…")
-        self.btn_close.setText("Cancel")
+        self._set_cancel_button(True)
 
         self._thread = QThread(self)
         self._worker = ModelDownloadWorker(_env)
@@ -148,7 +174,7 @@ class DependenciesDialog(QDialog):
 
     def _on_models_finished(self, ok: bool):
         self.progress.setVisible(False)
-        self.btn_close.setText("Close")
+        self._set_cancel_button(False)
         if ok:
             self._append("✅ Environment and models ready.")
             self.ok_when_closed = True
@@ -168,19 +194,19 @@ class DependenciesDialog(QDialog):
         self._thread.wait(60000)
 
     def _on_close(self):
-        if self._models_running():
-            self._stop_models()
+        if self._busy():
+            self._stop_all()
             return                      # el diálogo sigue abierto para ver el log
         if _env.venv_exists() and _env.models_ready():
             self.ok_when_closed = True
         self.accept()
 
     def closeEvent(self, event):
-        # Cerrar con la X destruiría el QThread en marcha: primero se cancela y se espera.
-        if self._models_running():
-            self._stop_models()
-            if self._models_running():
-                self._append("⚠️ Waiting for the download to stop…")
+        # Cerrar con la X destruiría el QProcess/QThread en marcha: cancelar y esperar.
+        if self._busy():
+            self._stop_all()
+            if self._busy():
+                self._append("⚠️ Waiting for the current step to stop…")
                 event.ignore()
                 return
         super().closeEvent(event)

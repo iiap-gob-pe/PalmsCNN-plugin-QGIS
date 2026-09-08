@@ -24,8 +24,9 @@ changelog=1.0.3 - Corrige el fallo al preparar el entorno virtual en QGIS 3.44 e
     las variables PYTHONHOME/PYTHONPATH de QGIS se heredaban en el proceso hijo y
     hacian fallar 'ensurepip'. Se detecta ademas un venv incompleto de intentos previos.
     La descarga de modelos ya no congela la interfaz: corre en un hilo aparte, con barra
-    de progreso y boton de cancelar. Corrige tambien el puente a osgeo/GDAL: el .pth se
-    escribia en la raiz del venv, donde Python lo ignora.
+    de progreso y boton de cancelar, que ahora tambien corta la fase de venv y pip.
+    Corrige tambien el puente a osgeo/GDAL: el .pth se escribia en la raiz del venv,
+    donde Python lo ignora.
   1.0.2 - Descarga de modelos solo por HTTPS, con lista de hosts permitidos y timeout explicito.
 
 # Tags are comma separated with spaces allowed
