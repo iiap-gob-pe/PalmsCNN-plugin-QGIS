@@ -17,6 +17,10 @@ def _safe_urlopen(url, timeout=60):
     req = urllib.request.Request(url, method="GET")
     return urllib.request.urlopen(req, timeout=timeout)  # nosec B310 - scheme/host validated above
 
+class _Cancelled(Exception):
+    """El usuario aborto la descarga de modelos."""
+
+
 class _SeqRunner(QObject):
     log = pyqtSignal(str)
     finished = pyqtSignal(int)
@@ -160,102 +164,165 @@ class EnvCore:
         env["PIP_DISABLE_PIP_VERSION_CHECK"] = "1"
         return env
     
-    def ensure_models(self, log_cb=None):
-        """
-        Verifica/descarga los modelos ONNX después de crear el venv e instalar librerías.
-        Si 'log_cb' se pasa (p. ej., self._append del diálogo), lo usa para loguear; si no, usa print.
-        """
-        log = log_cb or (lambda m: print(m))
-        plugin_dir = os.path.dirname(__file__)
-        trained_dir = os.path.join(plugin_dir, "trained_models")
-        os.makedirs(trained_dir, exist_ok=True)
+    def models_dir(self):
+        return os.path.join(os.path.dirname(__file__), "trained_models")
 
-        # Timeout razonable para descargas
-        socket.setdefaulttimeout(60)
-
-        # 🔗 URLs y SHA-256 publicados en Releases (ajústalos cuando cambies versión)
-        models = {
+    def _model_specs(self):
+        """URLs y SHA-256 publicados en Releases (ajustalos cuando cambies version)."""
+        base = "https://github.com/iiap-gob-pe/PalmsCNN-plugin-QGIS/releases/download/v1.0/"
+        return {
             "deeplab": {
                 "filename": "model_deeplabv3_segmentation_v1.onnx",
-                "url": "https://github.com/iiap-gob-pe/PalmsCNN-plugin-QGIS/releases/download/v1.0/model_deeplabv3_segmentation_v1.onnx",
+                "url": base + "model_deeplabv3_segmentation_v1.onnx",
                 "sha256": "3d384dad78b36adeb4b4b5b4b191e7c2bda5d91c9153948780c7fa0ce31ec9bd",  # pragma: allowlist secret
                 "compressed": False,   # True si subes .zip
             },
             "converted": {
                 "filename": "model_dwt_instance_segmenetation_v1.onnx",
-                "url": "https://github.com/iiap-gob-pe/PalmsCNN-plugin-QGIS/releases/download/v1.0/model_dwt_instance_segmenetation_v1.onnx",
+                "url": base + "model_dwt_instance_segmenetation_v1.onnx",
                 "sha256": "e184b3ca942c2a0cc6117b8586342b715d161cf0beaac030122b5c5e6a676fe8",  # pragma: allowlist secret
                 "compressed": False,   # True si subes .zip
             },
         }
 
-        def _sha256(path: str) -> str:
+    def models_ready(self):
+        """
+        Comprobacion barata (solo presencia y tamano) de que estan los .onnx. No calcula
+        el SHA-256: eso son cientos de MB y esto se llama desde el hilo de la GUI; la
+        verificacion completa la hace ensure_models en su propio hilo.
+        """
+        trained_dir = self.models_dir()
+        for m in self._model_specs().values():
+            dst = os.path.join(trained_dir, m["filename"])
+            if not os.path.exists(dst) or os.path.getsize(dst) == 0:
+                return False
+        return True
+
+    def ensure_models(self, log_cb=None, progress_cb=None, cancel_cb=None):
+        """
+        Verifica/descarga los modelos ONNX despues de crear el venv e instalar librerias.
+
+        Es bloqueante y puede tardar minutos, asi que esta pensada para correr en un hilo
+        aparte (ver ModelDownloadWorker): la descarga va por trozos, informa el avance con
+        progress_cb(etiqueta, bytes_hechos, bytes_totales) y consulta cancel_cb() entre
+        trozos. log_cb recibe los mensajes de texto. Devuelve True si todos los modelos
+        quedaron verificados.
+        """
+        log = log_cb or (lambda m: print(m))
+        progress = progress_cb or (lambda label, done, total: None)
+        cancelled = cancel_cb or (lambda: False)
+
+        trained_dir = self.models_dir()
+        os.makedirs(trained_dir, exist_ok=True)
+
+        # Timeout razonable para descargas
+        socket.setdefaulttimeout(60)
+
+        models = self._model_specs()
+
+        CHUNK = 256 * 1024
+
+        def _sha256(path, label):
             h = hashlib.sha256()
+            total = os.path.getsize(path)
+            done = 0
             with open(path, "rb") as f:
-                for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                while True:
+                    if cancelled():
+                        raise _Cancelled()
+                    chunk = f.read(CHUNK)
+                    if not chunk:
+                        break
                     h.update(chunk)
+                    done += len(chunk)
+                    progress("Verifying " + label, done, total)
             return h.hexdigest()
 
-        def _download(url: str, dest: str):
+        def _download(url, dest, label):
+            """Descarga a un .part y devuelve el SHA-256 calculado al vuelo."""
             tmp = dest + ".part"
             log(f"⬇️  Downloading model from:\n{url}")
+            h = hashlib.sha256()
             try:
                 with _safe_urlopen(url) as r, open(tmp, "wb") as f:
-                    shutil.copyfileobj(r, f)
+                    total = int(r.headers.get("Content-Length") or 0)
+                    done = 0
+                    progress("Downloading " + label, 0, total)
+                    while True:
+                        if cancelled():
+                            raise _Cancelled()
+                        chunk = r.read(CHUNK)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        h.update(chunk)
+                        done += len(chunk)
+                        progress("Downloading " + label, done, total)
                 os.replace(tmp, dest)
+                return h.hexdigest()
             except Exception as e:
                 try:
                     if os.path.exists(tmp):
                         os.remove(tmp)
-                finally:
+                except OSError:
                     pass
+                if isinstance(e, _Cancelled):
+                    raise
                 log(f"❌ Error downloading model: {e}")
                 raise
 
-        # Recorre y asegura cada modelo
-        for key, m in models.items():
-            dst = os.path.join(trained_dir, m["filename"])
+        all_ok = True
+        try:
+            for key, m in models.items():
+                dst = os.path.join(trained_dir, m["filename"])
+                label = m["filename"]
 
-            # Si ya existe y el hash coincide → OK
-            if os.path.exists(dst):
-                if _sha256(dst).lower() == m["sha256"].lower():
-                    log(f"✅ Model '{m['filename']}' verified.")
-                    continue
+                # Si ya existe y el hash coincide -> OK
+                if os.path.exists(dst):
+                    if _sha256(dst, label).lower() == m["sha256"].lower():
+                        log(f"✅ Model '{label}' verified.")
+                        continue
+                    log(f"⚠️  Hash does not match for {label}; will be re-downloaded.")
+                    try:
+                        os.remove(dst)
+                    except OSError:
+                        pass
+
+                # Descargar (zip o onnx directo)
+                if m["compressed"]:
+                    zip_dst = dst + ".zip"
+                    _download(m["url"], zip_dst, label)
+                    try:
+                        with zipfile.ZipFile(zip_dst, "r") as z:
+                            z.extractall(trained_dir)
+                    finally:
+                        try:
+                            os.remove(zip_dst)
+                        except OSError:
+                            pass
+                    digest = _sha256(dst, label) if os.path.exists(dst) else ""
                 else:
-                    log(f"⚠️  Hash does not match for {m['filename']}; will be re-downloaded.")
+                    # El hash se calcula durante la descarga: no hay segunda pasada al fichero.
+                    digest = _download(m["url"], dst, label)
+
+                # Verificacion final
+                if os.path.exists(dst) and digest.lower() == m["sha256"].lower():
+                    log(f"✅ Model '{label}' downloaded and verified correctly.")
+                else:
+                    all_ok = False
                     try:
-                        os.remove(dst)
-                    except Exception:
+                        if os.path.exists(dst):
+                            os.remove(dst)
+                    except OSError:
                         pass
+                    log(f"❌ SHA-256 verification failed for {label}")
+        except _Cancelled:
+            log("🛑 Model download cancelled by the user.")
+            return False
 
-            # Descargar (zip o onnx directo)
-            if m["compressed"]:
-                zip_dst = dst + ".zip"
-                _download(m["url"], zip_dst)
-                try:
-                    with zipfile.ZipFile(zip_dst, "r") as z:
-                        z.extractall(trained_dir)
-                finally:
-                    try:
-                        os.remove(zip_dst)
-                    except Exception:
-                        pass
-            else:
-                _download(m["url"], dst)
+        log("📦 Model verification completed.")
+        return all_ok
 
-            # Verificación final
-            if os.path.exists(dst) and _sha256(dst).lower() == m["sha256"].lower():
-                log(f"✅ Model '{m['filename']}' downloaded and verified correctly.")
-            else:
-                try:
-                    if os.path.exists(dst):
-                        os.remove(dst)
-                except Exception:
-                    pass
-                log(f"❌ SHA-256 verification failed for {m['filename']}")
-
-        log("📦 Model verification completed.")        
-    
     def dll_snippet(self):
         bin_dir,py_dir,dlls_dir,_=self._qgis_paths()
         return f"import os; os.add_dll_directory(r'{bin_dir}'); os.add_dll_directory(r'{dlls_dir}')"
@@ -298,3 +365,36 @@ class EnvCore:
 
 
  
+
+
+class ModelDownloadWorker(QObject):
+    """
+    Ejecuta EnvCore.ensure_models en un hilo aparte para que el dialogo no se congele
+    durante la descarga (los .onnx pesan cientos de MB). Se mueve a un QThread con
+    moveToThread y se arranca conectando QThread.started a run().
+    """
+    log = pyqtSignal(str)
+    progress = pyqtSignal(str, int, int)   # etiqueta, bytes hechos, bytes totales (0 = desconocido)
+    finished = pyqtSignal(bool)
+
+    def __init__(self, env, parent=None):
+        super().__init__(parent)
+        self._env = env
+        self._cancel = False
+
+    def cancel(self):
+        """Se llama desde el hilo de la GUI; run() lo consulta entre trozos."""
+        self._cancel = True
+
+    def run(self):
+        ok = False
+        try:
+            ok = self._env.ensure_models(
+                log_cb=self.log.emit,
+                progress_cb=lambda label, done, total: self.progress.emit(label, done, total),
+                cancel_cb=lambda: self._cancel,
+            )
+        except Exception as e:
+            self.log.emit(f"❌ Model step reported an error: {e}")
+            ok = False
+        self.finished.emit(bool(ok))
