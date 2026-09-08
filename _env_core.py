@@ -2,7 +2,7 @@
 import os, platform
 from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QObject, QProcess, pyqtSignal, QTimer, QProcessEnvironment
-import hashlib, urllib.request, urllib.parse, shutil, zipfile, socket
+import hashlib, urllib.request, urllib.parse, shutil, zipfile, socket, glob
 
 _ALLOWED_URL_SCHEMES = ("https",)
 _ALLOWED_URL_HOSTS = ("github.com", "objects.githubusercontent.com")
@@ -23,11 +23,16 @@ class _SeqRunner(QObject):
     def __init__(self, parent=None, env_vars=None):
         super().__init__(parent)
         self._cmds=[]; self._idx=-1; self._p=None; self._env=env_vars or {}
+        self._aborted=False
     def start(self, commands):
-        self._cmds=list(commands); self._idx=-1; self._next()
+        self._cmds=list(commands); self._idx=-1; self._aborted=False; self._next()
     def _apply_env(self, p:QProcess):
         if not self._env: return
-        env=QProcessEnvironment.systemEnvironment()
+        # Se construye desde cero (NO desde systemEnvironment) para que las variables
+        # eliminadas en EnvCore.build_env (PYTHONHOME, PYTHONPATH...) no se hereden
+        # del proceso de QGIS: si se heredan, el python del venv arranca con el stdlib
+        # de QGIS y 'ensurepip' falla con exit status 1.
+        env=QProcessEnvironment()
         for k,v in self._env.items(): env.insert(k,v)
         p.setProcessEnvironment(env)
     def _next(self):
@@ -41,10 +46,19 @@ class _SeqRunner(QObject):
             p.readAllStandardOutput().data().decode("utf-8","replace").rstrip("\n")
         ))
         p.finished.connect(lambda rc,_s: self._done(p,rc))
-        self._p=p; p.start(argv[0], argv[1:])       
+        p.errorOccurred.connect(lambda e: self._error(p,e))
+        self._p=p; p.start(argv[0], argv[1:])
+    def _error(self,p,err):
+        # FailedToStart no emite finished(): hay que cortar la secuencia a mano.
+        if err==QProcess.FailedToStart and not self._aborted:
+            self._aborted=True
+            self.log.emit(f"[could not start: {p.program()}]")
+            self.finished.emit(1)
     def _done(self,p,rc):
+        if self._aborted: return
         self.log.emit(f"[exit code: {rc}]")
-        if rc!=0: self.finished.emit(rc)
+        if rc!=0:
+            self._aborted=True; self.finished.emit(rc)
         else: QTimer.singleShot(10, self._next)
 
 class EnvCore:
@@ -60,7 +74,20 @@ class EnvCore:
             self.venv_python=os.path.join(self.venv_path,"bin","python")
         os.makedirs(os.path.dirname(self.venv_path), exist_ok=True)
 
-    def venv_exists(self): return os.path.exists(self.venv_python)
+    def venv_site_packages(self):
+        """site-packages del venv (Windows y POSIX)."""
+        cands = glob.glob(os.path.join(self.venv_path, "Lib", "site-packages"))
+        cands += glob.glob(os.path.join(self.venv_path, "lib", "python*", "site-packages"))
+        return cands[0] if cands else ""
+
+    def venv_exists(self):
+        # No basta con python.exe: un intento fallido deja el interprete copiado pero
+        # sin pip ni dependencias. El .pth del puente osgeo es el ultimo paso de la
+        # preparacion, asi que marca un entorno realmente completo.
+        if not os.path.exists(self.venv_python):
+            return False
+        sp = self.venv_site_packages()
+        return bool(sp) and os.path.exists(os.path.join(sp, "osgeo_qgis.pth"))
 
     def bridge_osgeo_commands(self):
         """
@@ -115,8 +142,11 @@ class EnvCore:
         prepend = [p for p in (bin_dir, dlls_dir, qt_bin) if os.path.isdir(p)]
         env["PATH"] = sep.join(prepend) + sep + env.get("PATH", "")
 
-        # MUY IMPORTANTE: sin PYTHONHOME (rompe el venv)
-        env.pop("PYTHONHOME", None)
+        # MUY IMPORTANTE: sin PYTHONHOME ni PYTHONPATH. QGIS los define apuntando a su
+        # propio Python; heredarlas rompe el venv (ensurepip / pip fallan con exit 1).
+        for _v in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP",
+                   "PYTHONEXECUTABLE", "__PYVENV_LAUNCHER__"):
+            env.pop(_v, None)
         env["PYTHONNOUSERSITE"] = "1"
 
         # Certificados para pip
@@ -234,7 +264,9 @@ class EnvCore:
         host = self.find_embedded_python()
         s = self.dll_snippet()
         return [
-            [host, "-m", "venv", self.venv_path],
+            # --without-pip: 'venv' no lanza ensurepip internamente, de modo que un fallo
+            # al instalar pip se ve en el paso siguiente con su mensaje real en el log.
+            [host, "-m", "venv", "--without-pip", self.venv_path],
             [self.venv_python, "-m", "ensurepip", "--upgrade", "--default-pip"],
             [self.venv_python, "-c",
              s + "; import ssl, sys; "

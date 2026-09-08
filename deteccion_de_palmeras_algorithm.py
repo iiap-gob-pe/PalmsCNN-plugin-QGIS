@@ -272,7 +272,10 @@ class DeteccionDePalmerasAlgorithm(QgsProcessingAlgorithm):
         # --- Ejecutar proceso en el venv ---
         _proc = QProcess()
         _envvars = _env.build_env()
-        _qenv = QProcessEnvironment.systemEnvironment()
+        # Entorno construido desde cero: build_env() ya elimina PYTHONHOME/PYTHONPATH
+        # de QGIS, y partir de systemEnvironment() las volveria a introducir, rompiendo
+        # el interprete del venv.
+        _qenv = QProcessEnvironment()
         for k, v in _envvars.items():
             _qenv.insert(k, v)
 
