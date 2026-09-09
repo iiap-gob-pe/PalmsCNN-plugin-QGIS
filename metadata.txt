@@ -5,12 +5,12 @@
 [general]
 name=PalmsCNN - Palm Tree Detection RPAs
 qgisMinimumVersion=3.40
-description=Este plug-in permite detectar automáticamente 3 especies de palmeras en imágenes RGB adquiridas con RPAs:aguaje (Mauritia flexuosa), huasai (Euterpe precautoria) y ungurahui (Oenocarpus bataua). Para obtener buenos resultados, las imágenes deben tener una resolución máxima de 4 cm/píxel.
+description=This plug-in automatically detects 3 palm species in RGB imagery acquired with RPAs: aguaje (Mauritia flexuosa), huasai (Euterpe precatoria) and ungurahui (Oenocarpus bataua). For good results, the imagery must have a resolution of 4 cm/pixel or finer.
 version=1.0.3
 author=Susan Palacios, Rodolfo Cardenas, Stephano Torres, Ximena Tagle
 email=rcardenasv@iiap.gob.pe
 
-about=El Plug-in de detección de palmeras utiliza modelos de Deep Learning entrenados para detectar automáticamente 3 especies de palmeras: aguaje (Mauritia flexuosa), huasai (Euterpe precatoria), ungurahui (Oenocarpus bataua) (Tagle et al. 2025, https://www.nature.com/articles/s41467-025-58358-5). Este Plug-in ha sido desarrollado en el marco de los proyectos "Supervisiones Optimizadas" y “Nuevos enfoques para comprender el estado de la biodiversidad y contribuir con el bienestar social: estudio de la distribución y degradación de Mauritia flexuosa en la Amazonía" a través de la colaboración de OSINFOR, IIAP, SERNANP, Universidad de Leeds, Universidad de Brescia, Universidad de Wageningen, y el financiamiento de los Fondos Newton, FONDECYT, WWF, GIZ y USAID.
+about=The palm detection plug-in uses Deep Learning models trained to automatically detect 3 palm species: aguaje (Mauritia flexuosa), huasai (Euterpe precatoria), ungurahui (Oenocarpus bataua) (Tagle et al. 2025, https://www.nature.com/articles/s41467-025-58358-5). This plug-in was developed within the projects "Supervisiones Optimizadas" and "New approaches to understand the state of biodiversity and contribute to social well-being: a study of the distribution and degradation of Mauritia flexuosa in the Amazon", through the collaboration of OSINFOR, IIAP, SERNANP, the University of Leeds, the University of Brescia and Wageningen University, with funding from the Newton Fund, FONDECYT, WWF, GIZ and USAID.
 
 homepage=https://github.com/iiap-gob-pe/PalmsCNN-plugin-QGIS
 tracker=https://github.com/iiap-gob-pe/PalmsCNN-plugin-QGIS/issues
