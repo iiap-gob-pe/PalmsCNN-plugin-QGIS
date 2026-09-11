@@ -27,7 +27,7 @@ class DependenciesDialog(QDialog):
     def __init__(self, iface=None, parent=None):
         super().__init__(parent or (iface.mainWindow() if iface else None))
         self.setWindowTitle("PalmsCNN plugin dependencies")
-        self.setWindowModality(Qt.ApplicationModal)
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
         self.resize(780, 520)
         self.ok_when_closed = False
 
@@ -65,7 +65,15 @@ class DependenciesDialog(QDialog):
         self._worker = None
 
         # Estado inicial
-        if _env.venv_exists() and _env.models_ready():
+        _mismatch = _env.numpy_mismatch()
+        if _mismatch:
+            self.log.appendPlainText(
+                "⚠️ The environment has numpy {} but this QGIS build ships numpy {}. "
+                "Its GDAL cannot be loaded across that gap. Click ‘Prepare environment’ "
+                "to reinstall the stack with the matching version."
+                .format(_mismatch[0], _mismatch[1])
+            )
+        elif _env.venv_exists() and _env.models_ready():
             self.btn_prep.setEnabled(False)
             self.log.appendPlainText(f"✅ Environment detected: {_env.venv_python}")
         elif _env.venv_exists():
@@ -88,12 +96,24 @@ class DependenciesDialog(QDialog):
     def _on_prepare(self):
         self.btn_prep.setEnabled(False)
 
-        # Si el venv ya está, solo faltan (o fallaron) los modelos: se reintenta ese paso.
-        if _env.venv_exists():
+        _mismatch = _env.numpy_mismatch()
+        if _mismatch and _env.venv_exists():
+            # El venv esta completo pero con el numpy equivocado: se reinstala el
+            # stack en su sitio, sin rehacer el entorno entero.
+            self._append(
+                "Reinstalling the dependency stack with {} to match QGIS."
+                .format(_env.numpy_requirement())
+            )
+            cmds = _env.repair_numpy_commands()
+        elif _env.venv_exists():
+            # Solo faltan (o fallaron) los modelos: se reintenta ese paso.
             self._start_models()
             return
-
-        cmds = _env.numpy2_stack_commands()
+        else:
+            self._append("numpy pinned to {} (QGIS ships numpy {})."
+                         .format(_env.numpy_requirement(),
+                                 _env.qgis_numpy_version() or "unknown"))
+            cmds = _env.dependency_stack_commands()
         self._runner = _env.make_seq_runner(parent=self, log_slot=self._append)
 
         def finished(rc: int):
@@ -109,7 +129,8 @@ class DependenciesDialog(QDialog):
                              "press ‘Prepare environment’ to finish it.")
             else:
                 self._append(f"❌ Error during preparation (exit {rc}).")
-                QMessageBox.warning(self, "Error", "Falló la creación del entorno. Revisa el log.")
+                QMessageBox.warning(self, "Error",
+                                    "Could not create the environment. Check the log above.")
 
         self._runner.finished.connect(finished)
         self._append("⏳ Starting to create the environment…")
@@ -222,7 +243,7 @@ def ensure_dependencies(iface=None) -> bool:
         return True
 
     dlg = DependenciesDialog(iface)
-    dlg.exec_()
+    dlg.exec()
 
     return dlg.ok_when_closed or _env.venv_exists()
 

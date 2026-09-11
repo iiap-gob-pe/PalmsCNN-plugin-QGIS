@@ -49,7 +49,7 @@ class _SeqRunner(QObject):
             self._active=False; self.finished.emit(0); return
         argv=self._cmds[self._idx]; self.log.emit("\n$ "+" ".join(argv)+"\n")
         p=QProcess(); self._apply_env(p)
-        p.setProcessChannelMode(QProcess.MergedChannels)
+        p.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
         p.readyReadStandardOutput.connect(lambda: self.log.emit(
             p.readAllStandardOutput().data().decode("utf-8","replace").rstrip("\n")
         ))
@@ -66,13 +66,13 @@ class _SeqRunner(QObject):
         if not self._active: return
         self._aborted=True; self._active=False
         p=self._p
-        if p is not None and p.state()!=QProcess.NotRunning:
+        if p is not None and p.state()!=QProcess.ProcessState.NotRunning:
             p.kill(); p.waitForFinished(5000)
         self.log.emit("[cancelled]")
         self.finished.emit(-1)
     def _error(self,p,err):
         # FailedToStart no emite finished(): hay que cortar la secuencia a mano.
-        if err==QProcess.FailedToStart and not self._aborted:
+        if err==QProcess.ProcessError.FailedToStart and not self._aborted:
             self._aborted=True; self._active=False
             self.log.emit(f"[could not start: {p.program()}]")
             self.finished.emit(1)
@@ -351,7 +351,105 @@ class EnvCore:
         bin_dir,py_dir,dlls_dir,_=self._qgis_paths()
         return f"import os; os.add_dll_directory(r'{bin_dir}'); os.add_dll_directory(r'{dlls_dir}')"
 
-    def numpy2_stack_commands(self):
+    # ------------------------------------------------------------------
+    # numpy: el venv y QGIS comparten interprete a traves del puente osgeo,
+    # asi que el _gdal_array de QGIS se carga dentro del venv. Ese .pyd esta
+    # compilado contra una version concreta de numpy y no cruza el salto de
+    # major: numpy 2 en el venv con un QGIS de numpy 1 revienta al importar
+    # osgeo.gdal. QGIS 3.40 LTR trae numpy 1.26 y QGIS 3.44 trae numpy 2, de
+    # modo que la version no se puede fijar a ciegas: se lee de QGIS.
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _read_numpy_version(site_packages):
+        """Version de numpy en un site-packages, sin importarlo."""
+        if not site_packages or not os.path.isdir(site_packages):
+            return ""
+        try:
+            entries = sorted(os.listdir(site_packages))
+        except OSError:
+            return ""
+        for name in entries:
+            low = name.lower()
+            for suffix in (".dist-info", ".egg-info"):
+                if not (low.startswith("numpy-") and low.endswith(suffix)):
+                    continue
+                # El sufijo lleva guion, asi que hay que quitarlo antes de partir:
+                # "numpy-1.26.4.dist-info".split("-")[1] daria "1.26.4.dist".
+                parts = name[:-len(suffix)].split("-")
+                if len(parts) > 1 and parts[1]:
+                    return parts[1]
+        version_py = os.path.join(site_packages, "numpy", "version.py")
+        if os.path.exists(version_py):
+            try:
+                with open(version_py, encoding="utf-8", errors="replace") as fh:
+                    for line in fh:
+                        stripped = line.strip()
+                        if stripped.startswith("version") and "=" in stripped:
+                            return stripped.split("=", 1)[1].strip().strip("\"'")
+            except OSError:
+                return ""
+        return ""
+
+    @staticmethod
+    def _major(version):
+        try:
+            return int(str(version).split(".")[0])
+        except (ValueError, IndexError):
+            return 0
+
+    def qgis_numpy_version(self):
+        return self._read_numpy_version(self.qgis_site_packages())
+
+    def venv_numpy_version(self):
+        return self._read_numpy_version(self.venv_site_packages())
+
+    def numpy_requirement(self):
+        """Especificador de pip para numpy, atado al major que usa QGIS."""
+        version = self.qgis_numpy_version()
+        major = self._major(version)
+        if major >= 2:
+            return "numpy>={},<{}".format(major, major + 1)
+        if major == 1:
+            return "numpy=={}".format(version)
+        return "numpy<3"
+
+    def numpy_mismatch(self):
+        """(version_venv, version_qgis) si los majors difieren; None si encajan.
+
+        Devuelve None tambien cuando falta alguno de los dos datos: sin
+        certeza es mejor dejar continuar que bloquear una ejecucion valida.
+        """
+        venv_version = self.venv_numpy_version()
+        qgis_version = self.qgis_numpy_version()
+        if not venv_version or not qgis_version:
+            return None
+        if self._major(venv_version) != self._major(qgis_version):
+            return (venv_version, qgis_version)
+        return None
+
+    def _pip_install_commands(self, force=False):
+        """Los dos pasos de pip, con numpy fijado a lo que admite QGIS."""
+        s = self.dll_snippet()
+        req = self.numpy_requirement()
+        extra = "'--force-reinstall'," if force else ""
+        return [
+            [self.venv_python, "-c",
+             s + "; import runpy, sys; "
+                 "sys.argv=['pip','install','--only-binary=:all:'," + extra +
+                 "'" + req + "','scipy>=1.11','matplotlib>=3.8',"
+                 "'networkx>=3.0','pillow>=10','imageio','lazy_loader','packaging']; "
+                 "runpy.run_module('pip', run_name='__main__')"],
+            # numpy se repite aqui para que el resolutor no lo suba al instalar
+            # scikit-image u onnxruntime.
+            [self.venv_python, "-c",
+             s + "; import runpy, sys; "
+                 "sys.argv=['pip','install'," + extra +
+                 "'" + req + "','scikit-image>=0.23.2','onnxruntime']; "
+                 "runpy.run_module('pip', run_name='__main__')"],
+        ]
+
+    def dependency_stack_commands(self):
         host = self.find_embedded_python()
         s = self.dll_snippet()
         return [
@@ -363,27 +461,18 @@ class EnvCore:
              s + "; import ssl, sys; "
                  "print('SSL OK:', hasattr(ssl,'OPENSSL_VERSION'), getattr(ssl,'OPENSSL_VERSION', None)); "
                  "sys.exit(0 if hasattr(ssl,'OPENSSL_VERSION') else 2)"],
-            #[self.venv_python, "-c",
-            # s + "; import runpy, sys; "
-            #     "sys.argv=['pip','install','--upgrade','pip','setuptools','wheel']; "
-            #     "runpy.run_module('pip', run_name='__main__')"],
-            [self.venv_python, "-c",
-             s + "; import runpy, sys; "
-                 "sys.argv=['pip','install','--only-binary=:all:','numpy>=2,<3','scipy>=1.11','matplotlib>=3.8',"
-                 "'networkx>=3.0','pillow>=10','imageio','lazy_loader','packaging']; "
-                 "runpy.run_module('pip', run_name='__main__')"],
-            [self.venv_python, "-c",
-             s + "; import runpy, sys; "
-                 "sys.argv=['pip','install','scikit-image>=0.23.2','onnxruntime']; "
-                 "runpy.run_module('pip', run_name='__main__')"],
-        ]+self.bridge_osgeo_commands()
+        ] + self._pip_install_commands() + self.bridge_osgeo_commands()
+
+    def repair_numpy_commands(self):
+        """Reinstala el stack sobre un venv ya creado, con el numpy correcto."""
+        return self._pip_install_commands(force=True) + self.bridge_osgeo_commands()
 
     def make_seq_runner(self, parent, log_slot):
         r=_SeqRunner(parent=parent, env_vars=self.build_env())
         r.log.connect(log_slot); return r
 
     def qgis_site_packages(self):
-        """Devuelve la carpeta ...\apps\Python39\Lib\site-packages de QGIS."""
+        r"""Devuelve la carpeta ...\apps\Python39\Lib\site-packages de QGIS."""
         _, py_dir, _, _ = self._qgis_paths()
         return os.path.join(py_dir, "Lib", "site-packages")
 

@@ -1,3 +1,6 @@
 onnxruntime
 scikit-image
+# numpy no se fija aqui: el instalador lo ata al major que trae el GDAL de
+# QGIS (EnvCore.numpy_requirement), porque el puente osgeo carga ese binario
+# dentro del venv y el .pyd no cruza el salto numpy 1 -> 2.
 # Additional dependencies can be added with explicit version requirements

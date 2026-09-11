@@ -60,8 +60,6 @@ class DeteccionDePalmerasProvider(QgsProcessingProvider):
         Dependencies will be checked when the algorithm is actually run.
         """
         self.addAlgorithm(DeteccionDePalmerasAlgorithm())
-        # add additional algorithms here
-        # self.addAlgorithm(MyOtherAlgorithm())
 
     def id(self):
         """
@@ -78,7 +76,7 @@ class DeteccionDePalmerasProvider(QgsProcessingProvider):
 
         This string should be short (e.g. "Lastools") and localised.
         """
-        return self.tr('Palmeras')
+        return self.tr('PalmsCNN')
 
     def icon(self):
         """

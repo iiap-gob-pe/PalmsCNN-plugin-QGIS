@@ -63,10 +63,11 @@ class DeteccionDePalmerasPlugin(object):
         icon = os.path.join(os.path.join(cmd_folder, 'logo.png'))#icon
         self.action = QAction(
             QIcon(icon),
-            u"Detección de Palmeras", self.iface.mainWindow())#icon
+            u"Palm detection", self.iface.mainWindow())#icon
         self.action.triggered.connect(self.run)#icon
         self.iface.addPluginToMenu(u"&Palmeras", self.action)#icon
         self.iface.addToolBarIcon(self.action)#icon
+
 
 
     def unload(self):
@@ -86,6 +87,7 @@ class DeteccionDePalmerasPlugin(object):
         QgsApplication.processingRegistry().removeProvider(self.provider)
         self.iface.removePluginMenu(u"&Palmeras", self.action)#icon
         self.iface.removeToolBarIcon(self.action)#icon
+
         
 
     def run(self):#icon
@@ -99,7 +101,7 @@ class DeteccionDePalmerasPlugin(object):
             from qgis.PyQt.QtWidgets import QMessageBox
             QMessageBox.critical(
                 self.iface.mainWindow(),
-                "Error de Dependencias",
-                "No se pudieron verificar las dependencias requeridas.\n\n" +
+                "Dependency error",
+                "The required dependencies could not be verified.\n\n" +
                 str(e)
             )
