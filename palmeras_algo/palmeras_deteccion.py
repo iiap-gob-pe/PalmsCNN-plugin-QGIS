@@ -183,12 +183,46 @@ def postprocess_mask(mask, min_region_size=30):
         return mask
 
 ### Main Plugin Function ###
-def apply_palmeras(INPUT_RASTER, OUTPUT_RASTER):
+def apply_palmeras(INPUT_RASTER, OUTPUT_RASTER,
+                   window_radius=256, internal_window_radius=None, batch_size=0,
+                   crown_dilation=0, crown_separation=0, blend_seams=True,
+                   low_memory=False, memory_budget_mb=0,
+                   fill_holes=True):
+    """Detecta palmeras en INPUT_RASTER y deja el resultado en OUTPUT_RASTER.
+
+    window_radius e internal_window_radius controlan el ventaneo de la
+    segmentacion semantica. Con los valores por defecto (256 y None) el
+    comportamiento es identico al de siempre: la ventana mide 512 px y se
+    conserva el 75 % central. La etapa de instancias (DWT) mantiene sus propios
+    radios, 350 y 262.
+
+    batch_size limita cuantas ventanas viajan juntas a cada session.run. Con 0 se
+    envia la columna entera, como siempre; un valor mas bajo recorta el pico de
+    memoria de forma proporcional, a cambio de mas llamadas al modelo.
+
+    crown_dilation dilata cada copa detectada esos METROS. Con 0 no se toca nada.
+    No altera el recuento de individuos, solo su superficie.
+
+    crown_separation separa copas que se tocan: es el radio en pixeles con el que se
+    erosionan los marcadores del watershed. Con 0 se mantiene el comportamiento
+    historico, que no logra partir copas pegadas por un frente ancho.
+
+    blend_seams combina las ventanas solapadas de la segmentacion semantica en vez de
+    pisar unas con otras. Quita las costuras rectas del mosaico a cambio de un
+    acumulador de alto x ancho x clases en float32.
+
+    low_memory proyecta lo que va a costar la segmentacion y, si no cabe en el
+    presupuesto, la parte en franjas de filas que se liberan una tras otra.
+    memory_budget_mb fija ese presupuesto; con 0 se toma el 60 % de la memoria libre.
+    """
     ### Model settings
-    window_radius = 256
+    window_radius = int(window_radius)
     output_folder = os.path.dirname(OUTPUT_RASTER) if OUTPUT_RASTER != 'TEMPORARY_OUTPUT' else os.path.join(os.path.dirname(INPUT_RASTER), 'output')
     feature_file_list = [INPUT_RASTER]
-    internal_window_radius = int(round(window_radius * 0.75))
+    if internal_window_radius:
+        internal_window_radius = max(1, min(window_radius, int(internal_window_radius)))
+    else:
+        internal_window_radius = int(round(window_radius * 0.75))
     model_path = os.path.join(pluginPath, "model_deeplabv3_segmentation_v1.onnx")
     model_path2 = os.path.join(pluginPath, "model_dwt_instance_segmenetation_v1.onnx")
     
@@ -219,7 +253,11 @@ def apply_palmeras(INPUT_RASTER, OUTPUT_RASTER):
         window_radius=window_radius,
         internal_window_radius=internal_window_radius,
         make_tif=True,
-        scaling='normalize'  # Usar normalización mejorada
+        scaling='normalize',  # Usar normalización mejorada
+        batch_size=batch_size,
+        blend_seams=blend_seams,
+        low_memory=low_memory,
+        memory_budget_mb=memory_budget_mb
     )
 
     ### Procesamiento de instancias
@@ -232,6 +270,8 @@ def apply_palmeras(INPUT_RASTER, OUTPUT_RASTER):
     print("=== PROCESANDO INSTANCIAS ===")
     print(f"Window radius instancias: {window_radius_instances}")
     print(f"Internal window radius instancias: {internal_window_radius_instances}")
+    print(f"Crown dilation: {crown_dilation} m")
+    print(f"Crown separation: {crown_separation} px")
 
     name_saved_final, mau, eut, oeno = apply_model_dwt.apply_instance_onnx(
         feature_file_list,
@@ -242,20 +282,43 @@ def apply_palmeras(INPUT_RASTER, OUTPUT_RASTER):
         window_radius_instances,
         internal_window_radius_instances,
         make_tif=True,
-        make_png=False
+        make_png=False,
+        crown_dilation=crown_dilation,
+        crown_separation=crown_separation,
+        fill_holes=fill_holes
     )
     
-    # Manejar rutas de salida
+    # Salidas con nombre propio junto al destino elegido en Processing. El raster de
+    # instancias se copia ademas a OUTPUT_RASTER porque ese es el destino que QGIS
+    # reserva para el parametro; si ya coinciden, no se duplica.
+    import shutil
+
+    dest_dir = os.path.dirname(OUTPUT_RASTER) or output_folder
+    individuos = os.path.join(dest_dir, 'detected_individuals.tif')
+    cobertura = os.path.join(dest_dir, 'detected_coverage.tif')
+
     out_imag = os.path.join(output_folder, name_saved_final)
-    os.rename(out_imag, OUTPUT_RASTER)
-    OUTPUT_RASTER_CLAS = os.path.join(OUTPUT_RASTER.split('.')[0] + '_clas.tif')
-    os.rename(name_mask_clas, OUTPUT_RASTER_CLAS)
-    
-    print("=== RESULTADOS FINALES ===")
-    print(f"Ráster de instancias: {OUTPUT_RASTER}")
-    print(f"Ráster de clasificación: {OUTPUT_RASTER_CLAS}")
-    print(f"Mauritia flexuosa: {mau} palmeras")
-    print(f"Euterpe precatoria: {eut} palmeras") 
-    print(f"Oenocarpus bataua: {oeno} palmeras")
-    
-    return OUTPUT_RASTER, OUTPUT_RASTER_CLAS, mau, eut, oeno
+    if os.path.exists(individuos):
+        os.remove(individuos)
+    os.rename(out_imag, individuos)
+
+    if os.path.exists(cobertura):
+        os.remove(cobertura)
+    os.rename(name_mask_clas, cobertura)
+
+    if os.path.abspath(individuos) != os.path.abspath(OUTPUT_RASTER):
+        shutil.copyfile(individuos, OUTPUT_RASTER)
+
+    print("=== FINAL RESULTS ===")
+    print(f"Detected individuals: {individuos}")
+    print("   Float32, nodata 0 (transparent). Pixel values: "
+          "15 = Mauritia flexuosa, 25 = Euterpe precatoria, 35 = Oenocarpus bataua")
+    print(f"Detected coverage: {cobertura}")
+    print("   Byte, nodata 0. Pixel values: 0 = background, 1 = Mauritia flexuosa, "
+          "2 = Euterpe precatoria, 3 = Oenocarpus bataua")
+    print(f"Processing destination: {OUTPUT_RASTER}")
+    print(f"Mauritia flexuosa: {mau} palms")
+    print(f"Euterpe precatoria: {eut} palms")
+    print(f"Oenocarpus bataua: {oeno} palms")
+
+    return OUTPUT_RASTER, cobertura, mau, eut, oeno

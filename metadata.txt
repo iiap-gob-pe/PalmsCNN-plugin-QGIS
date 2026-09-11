@@ -6,7 +6,7 @@
 name=PalmsCNN - Palm Tree Detection RPAs
 qgisMinimumVersion=3.40
 description=This plug-in automatically detects 3 palm species in RGB imagery acquired with RPAs: aguaje (Mauritia flexuosa), huasai (Euterpe precatoria) and ungurahui (Oenocarpus bataua). For good results, the imagery must have a resolution of 4 cm/pixel or finer.
-version=1.0.3
+version=1.1.0
 author=Susan Palacios, Rodolfo Cardenas, Stephano Torres, Ximena Tagle
 email=rcardenasv@iiap.gob.pe
 
@@ -20,7 +20,62 @@ repository=https://github.com/iiap-gob-pe/PalmsCNN-plugin-QGIS
 # Recommended items:
 
 hasProcessingProvider=yes
-changelog=1.0.3
+changelog=1.1.0
+  - New "Optimise memory use": the semantic segmentation now works out what it is going
+    to cost before reserving anything, reports it, and if it does not fit in the budget
+    processes the raster in horizontal strips freed one after another. A 6500 x 6500
+    orthomosaic drops from about 1.3 GB to a few hundred MB. The result is unchanged:
+    the strips overlap by twice the window radius so rows at a strip edge get the same
+    votes, and the normalisation percentiles are computed over the whole raster with a
+    streaming histogram rather than per strip. Verified at 99.999 % identical pixels.
+  - Buffers are released as soon as they stop being needed, and free system memory is
+    read from the OS rather than guessed.
+  - Touching crowns are now separated from the bright centre of each crown in the
+    imagery. Neither the depth map of the model nor the shape of the mask can split
+    crowns that overlap into a convex blob; the crown centre still shows. Measured on a
+    real stand, the largest merged blob drops from 13.9 m to 12.4 m across.
+  - Overlapping windows are now combined instead of painted over one another. The scores
+    of every window covering a pixel are added up, weighted so the middle of a window
+    counts more than its edge, and the class is decided once at the end. This removes the
+    dead straight seams the mosaic used to show wherever two windows disagreed, and
+    recovers crowns only one window had seen: on a test image, semantic coverage went from
+    40 % to 51 %. Can be switched off if memory is tight.
+  - Touching crowns are separated. Markers come from the shape of the mask, grown back by
+    a watershed to the edge of the semantic mask, so crowns split AND keep their real size.
+    The minimum spacing is set in metres and converted with the raster pixel size, so it
+    no longer drifts between windows or between flights; without a metric raster it falls
+    back to an estimate floored at the smallest crown the pipeline accepts.
+  - The instance raster no longer crashes the run when a tile contains no palm at all.
+  - Fix the crown erosion for Mauritia: it used a 36x3 structuring element, cutting ~70 cm
+    off the top and bottom of every aguaje crown at 4 cm/pixel while barely touching the
+    sides. The two chained erosions are now a single explicit one per species.
+  - Every message, label and button is now in English.
+  - The two rasters are written as individuos_detectados.tif and cobertura_detectada.tif,
+    and both are added to the canvas. The semantic mask was already being produced but was
+    never declared as an output, so QGIS never showed it.
+  - The Processing dialog now shows real progress and streams the model output live as it
+    runs, instead of staying frozen until the end. Cancelling stops the child process.
+  - Window radius and internal window radius are algorithm parameters instead of hard-coded
+    values. Both labels state that the values are pixels, and the internal one shows the
+    resulting size (192 px) rather than a percentage.
+  - Windows per inference splits the ONNX batch, which was always a whole column. The batch
+    is also built straight into one buffer: the old code held the column in a list and then
+    np.stack made a second copy. Normalisation no longer duplicates the whole raster either.
+    Results are unchanged, verified pixel for pixel.
+  - The semantic segmentation refuses a window size the ONNX model cannot accept, naming the
+    size it expects, instead of failing inside ONNX Runtime.
+  - Fix the isolated environment on QGIS builds that ship numpy 1.x: the venv installed
+    numpy 2 unconditionally, and the osgeo bridge then loaded a GDAL compiled against
+    numpy 1, so every run died with "numpy.core.multiarray failed to import". numpy is
+    now pinned to the major QGIS itself ships, and an existing broken environment is
+    repaired in place from the dependencies dialog.
+  - Fix the findings of the plugins.qgis.org security scan: no bare try/except/pass,
+    no assert in the test suite, no invalid escape sequences.
+  - Use fully scoped Qt/QGIS enums (Qt.WindowModality, QProcess.ProcessChannelMode,
+    QgsProcessing.SourceType, QgsVectorDataProvider.Capability) for Qt6 readiness.
+  - The package no longer ships development-only files (shell/batch scripts, tests,
+    linter configuration, the repository upload script).
+  1.0.3
   - Fix virtual environment creation on Windows: QGIS PYTHONHOME/PYTHONPATH leaked into the child process and made ensurepip fail.
   - Fix the osgeo/GDAL bridge: the .pth file was written outside site-packages, so Python ignored it.
   - Model download no longer freezes the dialog: it runs in a worker thread, with a progress bar and a Cancel button that also works while dependencies are being installed.

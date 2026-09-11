@@ -37,8 +37,13 @@ from qgis.core import (QgsProcessing,
                        QgsProcessingParameterFeatureSource,
                        QgsProcessingParameterFeatureSink,
                        QgsProcessingParameterRasterLayer,
-                       QgsProcessingParameterRasterDestination,
+                       QgsProcessingParameterFolderDestination,
+                       QgsProcessingParameterNumber,
+                       QgsProcessingParameterBoolean,
+                       QgsProcessingParameterFileDestination,
                        QgsProcessingOutputVectorLayer,
+                       QgsProcessingOutputRasterLayer,
+                       QgsProcessingContext,
                        QgsProcessingOutputNumber,
                        QgsProcessingOutputFile)
 
@@ -69,7 +74,12 @@ class DeteccionDePalmerasAlgorithm(QgsProcessingAlgorithm):
     #INPUT = 'INPUT'
     
     INPUT_RASTER = 'INPUT_RASTER'
-    OUTPUT_RASTER = 'OUTPUT_RASTER'
+    WINDOW_RADIUS = 'WINDOW_RADIUS'
+    INTERNAL_WINDOW_RADIUS = 'INTERNAL_WINDOW_RADIUS'
+    LOW_MEMORY = 'LOW_MEMORY'
+    OUTPUT_FOLDER = 'OUTPUT_FOLDER'
+    OUTPUT_INDIVIDUALS_DETECTED = 'OUTPUT_INDIVIDUALS_DETECTED'
+    OUTPUT_COVERAGE_DETECTED = 'OUTPUT_COVERAGE_DETECTED'
     OUTPUT_VECTOR = 'OUTPUT_VECTOR'
     OUTPUT_CENTROIDES = 'OUTPUT_CENTROIDES'
     ATRIBUTOS_CSV = 'ATRIBUTOS_CSV'
@@ -87,88 +97,193 @@ class DeteccionDePalmerasAlgorithm(QgsProcessingAlgorithm):
         with some other properties.
         """
         #inputs
-        self.addParameter(
-            QgsProcessingParameterRasterLayer(
-                self.INPUT_RASTER,
-                self.tr('Input raster')
-            )
+        raster = QgsProcessingParameterRasterLayer(
+            self.INPUT_RASTER,
+            self.tr('Input raster')
         )
+        raster.setHelp(self.tr(
+            'RGB orthomosaic acquired with an RPA. The models were trained at about '
+            '4 cm/pixel; coarser imagery loses the small crowns.'))
+        self.addParameter(raster)
+
+        # Both radii used to be hard-coded in palmeras_deteccion.py. The labels spell
+        # out the resulting sizes so the numbers are not read as a ratio, and setHelp
+        # puts the full explanation in the dialog itself.
+        window_radius = QgsProcessingParameterNumber(
+            self.WINDOW_RADIUS,
+            self.tr('Window radius, in pixels (window side = 2 x this, 512 px by default)'),
+            type=QgsProcessingParameterNumber.Type.Integer,
+            defaultValue=256, minValue=32, maxValue=2048
+        )
+        window_radius.setHelp(self.tr(
+            'How much the network sees at once. The raster is cut into windows of '
+            '2 x this value, so 256 gives 512 x 512 px windows.\n\n'
+            'The models were trained at 256. If the ONNX file has a fixed input size, '
+            'any other value stops the run with a message naming the size it expects.\n\n'
+            'A larger radius gives the network more context but makes each batch heavier: '
+            'memory grows with the square of this number.'))
+        self.addParameter(window_radius)
+
+        internal_radius = QgsProcessingParameterNumber(
+            self.INTERNAL_WINDOW_RADIUS,
+            self.tr('Internal window radius, in pixels (core side = 2 x this; 0 = automatic, 75 % of the window radius)'),
+            type=QgsProcessingParameterNumber.Type.Integer,
+            defaultValue=192, minValue=0, maxValue=2048
+        )
+        internal_radius.setHelp(self.tr(
+            'How much of each prediction is kept. Only the central 2 x this value is '
+            'pasted into the mosaic; the margin around it enters as context and is '
+            'discarded, because that is where the network has least neighbourhood.\n\n'
+            'It has to be SMALLER than the window radius or there is no overlap at all. '
+            'With both at 256 the step between windows is 2 x 256 = 512 px, exactly the '
+            'window side: the windows sit edge to edge, nothing overlaps, and "Blend '
+            'overlapping windows" has nothing to blend.\n\n'
+            'Measured on 1.8 ha against 56 hand-labelled crowns, going from 256 to 192 '
+            '- a 64 px margin - resolves 3 more crowns and removes 3 merged pairs.\n\n'
+            'The margin is not free: the outer 64 px of the raster fall outside every '
+            'window core and come out empty. On a large mosaic that is a thin frame and '
+            'does not matter; on a small clip it can be a noticeable share of the area, '
+            'and there raising this value back to the window radius trades the seams for '
+            'full coverage.\n\n'
+            'Smaller values mean more overlap and more windows, and the cost grows with '
+            'the square of the ratio. 0 picks 75 % of the window radius.'))
+        self.addParameter(internal_radius)
+
+        low_memory = QgsProcessingParameterBoolean(
+            self.LOW_MEMORY,
+            self.tr('Optimise memory use'),
+            defaultValue=False
+        )
+        low_memory.setHelp(self.tr(
+            'Works out what the semantic segmentation is going to cost before it '
+            'reserves anything, and if it does not fit in the budget, processes the '
+            'raster in horizontal strips that are freed one after another instead of '
+            'holding it whole.\n\n'
+            'Off, the whole raster is normalised in float32 and a score accumulator of '
+            'the same footprint is kept beside it: about 1.3 GB for a 6500 x 6500 '
+            'raster. On, that drops to a few hundred MB whatever the size, at the cost '
+            'of reading the raster twice more to get the exact percentiles the '
+            'normalisation needs.\n\n'
+            'The result is the same either way: the strips overlap by twice the window '
+            'radius so the rows at a strip edge get the same votes they would have got '
+            'in one piece, and the percentiles come from the whole raster, not from '
+            'each strip.\n\n'
+            'Turn it on for large orthomosaics, or on a machine where QGIS is competing '
+            'with other work for memory. The log reports the projection either way.'))
+        self.addParameter(low_memory)
+
+
+
+
+
+
+
+
 
 
         # output
         self.addParameter(
-            QgsProcessingParameterRasterDestination(
-                self.OUTPUT_RASTER,
-                self.tr('Output raster'),
+            QgsProcessingParameterFolderDestination(
+                self.OUTPUT_FOLDER,
+                self.tr('Output folder'),
                 optional=False
+            )
+        )
+        self.parameterDefinition(self.OUTPUT_FOLDER).setHelp(self.tr(
+            'Folder where the run writes everything. Pick a folder, not a file name: '
+            'the algorithm decides the names so a run is always complete and its files '
+            'travel together.\n\n'
+            'What lands there:\n'
+            'detected_individuals.tif - one crown per connected group of pixels\n'
+            'detected_coverage.tif - where each species is, without separating '
+            'individuals\n'
+            'detected_individuals_polygons / _centroids - the crowns as vectors, with '
+            'their attribute table\n'
+            '_attributes.csv and _report.csv - one row per crown, and the summary by '
+            'species\n\n'
+            'An existing folder is reused and its files overwritten.'))
+
+        self.addOutput(
+            QgsProcessingOutputRasterLayer(
+                self.OUTPUT_INDIVIDUALS_DETECTED,
+                self.tr('Detected individuals (instances)')
+            )
+        )
+
+        # The semantic mask was already being written (the file the counting step
+        # reads) but it was never declared, so QGIS never showed it.
+        self.addOutput(
+            QgsProcessingOutputRasterLayer(
+                self.OUTPUT_COVERAGE_DETECTED,
+                self.tr('Detected coverage (semantic classes)')
             )
         )
 
         self.addOutput(
             QgsProcessingOutputVectorLayer(
                 self.OUTPUT_VECTOR,
-                self.tr('Output vector'),
-                type = QgsProcessing.TypeVectorAnyGeometry
+                self.tr('Detected palms (polygons)'),
+                type = QgsProcessing.SourceType.TypeVectorAnyGeometry
             )
         )
 
         self.addOutput(
             QgsProcessingOutputVectorLayer(
                 self.OUTPUT_CENTROIDES,
-                self.tr('Output centroides'),
-                type = QgsProcessing.TypeVectorAnyGeometry
+                self.tr('Detected palms (centroids)'),
+                type = QgsProcessing.SourceType.TypeVectorAnyGeometry
             )
         )
 
         self.addOutput(
             QgsProcessingOutputFile(
                 self.ATRIBUTOS_CSV,
-                self.tr('Tabla de Atributos')
+                self.tr('Attribute table (CSV)')
             )
         )
 
         self.addOutput(
             QgsProcessingOutputFile(
                 self.REPORTE_CSV,
-                self.tr('Reporte')
+                self.tr('Summary report (CSV)')
             )
         )
 
         self.addOutput(
             QgsProcessingOutputNumber(
                 'NMAURITIA',
-                self.tr('Cantidad de Mauritia')
+                self.tr('Mauritia flexuosa count')
             )
         )
 
         self.addOutput(
             QgsProcessingOutputNumber(
                 'NEUTERPE',
-                self.tr('Cantidad de Euterpe')
+                self.tr('Euterpe precatoria count')
             )
         )
         self.addOutput(
             QgsProcessingOutputNumber(
                 'NOENOCARPUS',
-                self.tr('Cantidad de Oenocarpus')
+                self.tr('Oenocarpus bataua count')
             )
         )
         self.addOutput(
             QgsProcessingOutputNumber(
                 'AMAURITIA',
-                self.tr('Area de Mauritia')
+                self.tr('Mauritia flexuosa area (ha)')
             )
         )
         self.addOutput(
             QgsProcessingOutputNumber(
                 'AEUTERPE',
-                self.tr('Area de Euterpe')
+                self.tr('Euterpe precatoria area (ha)')
             )
         )
         self.addOutput(
             QgsProcessingOutputNumber(
                 'AOENOCARPUS',
-                self.tr('Area de Oenocarpus')
+                self.tr('Oenocarpus bataua area (ha)')
             )
         )
 
@@ -178,7 +293,7 @@ class DeteccionDePalmerasAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterFeatureSource(
                 self.INPUT,
                 self.tr('Input layer'),
-                [QgsProcessing.TypeVectorAnyGeometry]
+                [QgsProcessing.SourceType.TypeVectorAnyGeometry]
             )
         )"""
 
@@ -212,8 +327,14 @@ class DeteccionDePalmerasAlgorithm(QgsProcessingAlgorithm):
             parameters, self.INPUT_RASTER, context)
 
         
-        OUTPUT_RASTER = self.parameterAsOutputLayer(
-            parameters, self.OUTPUT_RASTER, context)
+        OUTPUT_FOLDER = self.parameterAsString(
+            parameters, self.OUTPUT_FOLDER, context)
+        if not OUTPUT_FOLDER:
+            raise QgsProcessingException(self.tr('Choose an output folder.'))
+        os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+        # El nombre lo pone el algoritmo: apply_palmeras escribe siempre
+        # detected_individuals.tif y detected_coverage.tif junto al destino.
+        OUTPUT_RASTER = os.path.join(OUTPUT_FOLDER, 'detected_individuals.tif')
 
         OUTPUT_VECTOR = self.parameterAsOutputLayer(
             parameters, self.OUTPUT_VECTOR, context)
@@ -227,6 +348,73 @@ class DeteccionDePalmerasAlgorithm(QgsProcessingAlgorithm):
         REPORTE_CSV = self.parameterAsFileOutput(
             parameters, self.REPORTE_CSV, context)
 
+        WINDOW_RADIUS = self.parameterAsInt(
+            parameters, self.WINDOW_RADIUS, context)
+
+        INTERNAL_WINDOW_RADIUS = self.parameterAsInt(
+            parameters, self.INTERNAL_WINDOW_RADIUS, context)
+
+
+
+
+
+        LOW_MEMORY = self.parameterAsBool(
+            parameters, self.LOW_MEMORY, context)
+
+
+        # --- Window grid: reported before spending minutes on the models ---
+        from .window_grid import (grid_geometry, describe_geometry,
+                                  resolve_internal_radius, window_centers)
+
+        _iwr = resolve_internal_radius(WINDOW_RADIUS, INTERNAL_WINDOW_RADIUS)
+        _rw, _rh = INPUT_RASTER.width(), INPUT_RASTER.height()
+        _geo = grid_geometry(_rw, _rh, WINDOW_RADIUS, _iwr)
+        feedback.pushInfo('=== SLIDING WINDOW (semantic segmentation) ===')
+        for _line in describe_geometry(_geo, _rw, _rh):
+            feedback.pushInfo(_line)
+
+        if not _geo['n_windows']:
+            raise RuntimeError(
+                'No window fits in a {}x{} px raster with a window radius of {} px. '
+                'Lower the window radius.'.format(_rw, _rh, WINDOW_RADIUS))
+
+        # El mezclado de costuras va siempre activado: el acumulador de votos se
+        # reserva igualmente, y el remedio cuando no cabe es "Optimise memory use",
+        # que trocea el raster en franjas en vez de sostenerlo entero.
+        _blend_mb = _rw * _rh * 4 * 4 / 1048576.0
+        feedback.pushInfo(
+            'Blending overlapping windows: score accumulator of {:.0f} MB.'
+            .format(_blend_mb))
+        if _blend_mb > 1024 and not LOW_MEMORY:
+            feedback.pushWarning(
+                'That accumulator needs {:.1f} GB on top of the normalised raster. '
+                'Tick "Optimise memory use" to process the raster in strips instead '
+                'of holding it whole; the result is the same.'
+                .format(_blend_mb / 1024.0))
+
+        if _geo['batch_mb'] > 512:
+            feedback.pushWarning(
+                'Each inference will move a {:.0f} MB batch as float32, the type the ONNX '
+                'model requires. Tick "Optimise memory use" if that is too much for '
+                'this machine.'.format(_geo['batch_mb']))
+
+        # Solo avisa si el ajuste multiplica las ventanas: con los valores por
+        # defecto el numero lo pone el tamano del raster, y decir "1 veces las
+        # que darian los valores por defecto" no informa de nada.
+        _ref = grid_geometry(_rw, _rh, 256, None)['n_windows'] or 1
+        _veces = _geo['n_windows'] / float(_ref)
+        if _geo['n_windows'] > 1500 and _veces > 1.2:
+            feedback.pushWarning(
+                '{} windows: {:.1f} times as many as the defaults (256 px / automatic) '
+                'would produce. Processing time grows in the same proportion.'
+                .format(_geo['n_windows'], _veces))
+
+        if WINDOW_RADIUS != 256:
+            feedback.pushWarning(
+                'Window radius is {} px instead of the 256 px the model was trained with. '
+                'If the ONNX input size is fixed, inference will stop with a message naming '
+                'the size it expects.'.format(WINDOW_RADIUS))
+
         if feedback.isCanceled():
             return {}
         
@@ -237,14 +425,27 @@ class DeteccionDePalmerasAlgorithm(QgsProcessingAlgorithm):
         _env = EnvCore(plugin_name="deteccion_de_palmeras_env")
         if not _env.venv_exists():
             raise RuntimeError(
-                "El entorno aislado no está preparado (falta {}). "
-                "Abre 'Dependencias' y créalo primero.".format(_env.venv_python)
+                "The isolated environment is not ready ({} is missing). "
+                "Open 'Palm dependencies' and create it first.".format(_env.venv_python)
             )
         if not _env.models_ready():
             raise RuntimeError(
-                "Faltan los modelos ONNX en {}. "
-                "Abre 'Dependencias' y pulsa 'Prepare environment' para descargarlos."
+                "The ONNX models are missing from {}. "
+                "Open 'Palm dependencies' and click 'Prepare environment' to download them."
                 .format(_env.models_dir())
+            )
+
+        # El puente osgeo carga el GDAL de QGIS dentro del venv, y su _gdal_array
+        # esta compilado contra un major concreto de numpy. Si no coinciden, el
+        # subproceso muere con un ImportError larguisimo: mejor decirlo aqui.
+        _numpy_gap = _env.numpy_mismatch()
+        if _numpy_gap:
+            raise RuntimeError(
+                "The isolated environment has numpy {} while this QGIS ships numpy {}. "
+                "The GDAL that comes with QGIS cannot be loaded across that major version "
+                "gap. Open 'Palm dependencies' and click 'Prepare environment': it will "
+                "reinstall the stack with {}."
+                .format(_numpy_gap[0], _numpy_gap[1], _env.numpy_requirement())
             )
 
         # --- Preparar script a ejecutar en el venv ---
@@ -270,7 +471,14 @@ class DeteccionDePalmerasAlgorithm(QgsProcessingAlgorithm):
             "    except Exception as e:\n"
             "        import traceback; traceback.print_exc()\n"
             "        raise\n"
-            f"_out_raster, _out_raster_clas, _mau, _eut, _oeno = _mod.apply_palmeras(r'{_in_raster}', r'{_out_raster}')\n"
+            f"_out_raster, _out_raster_clas, _mau, _eut, _oeno = _mod.apply_palmeras("
+            f"r'{_in_raster}', r'{_out_raster}', "
+            f"window_radius={int(WINDOW_RADIUS)}, internal_window_radius={int(_iwr)}, "
+            "crown_dilation=0.0, "
+            "crown_separation=-1, "   # siempre automatico
+            f"blend_seams=True, low_memory={bool(LOW_MEMORY)}, "
+            "fill_holes=True, "   # siempre activado
+            "memory_budget_mb=0)\n"
             "print(json.dumps({'out': [_out_raster, _out_raster_clas], 'counts': [_mau, _eut, _oeno]}))\n"
         )
 
@@ -290,22 +498,88 @@ class DeteccionDePalmerasAlgorithm(QgsProcessingAlgorithm):
 
         # Refuerza PYTHONPATH con la carpeta del plugin (donde viven palmeras_algo/ o palmeras_deteccion.py)
         _qenv.insert("PYTHONPATH", _plugin_dir)
+        # Sin esto la salida del subproceso se queda en un buffer de bloque y
+        # el progreso llega de golpe al final, cuando ya no sirve.
+        _qenv.insert("PYTHONUNBUFFERED", "1")
         _proc.setProcessEnvironment(_qenv)
-        _proc.setProcessChannelMode(QProcess.MergedChannels)
+        _proc.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
 
+        # El trabajo pesado vive en el subproceso, asi que el progreso se deduce de
+        # su salida: cada columna procesada es un paso. waitForFinished bombea los
+        # notificadores del QProcess, de modo que readyReadStandardOutput si dispara.
         _buf = []
-        _proc.readyReadStandardOutput.connect(lambda: _buf.append(_proc.readAllStandardOutput().data().decode("utf-8", "replace")))
-        _proc.start(_env.venv_python, [_script.name])
+        _progress = {'stage': 0, 'done': 0, 'proto': False}
+        _cols_semantic = max(1, _geo['n_cols'])
+        _cols_instances = max(1, len(window_centers(_rw, 350, resolve_internal_radius(350))))
+
+        def _on_output():
+            chunk = _proc.readAllStandardOutput().data().decode("utf-8", "replace")
+            _buf.append(chunk)
+            for _raw in chunk.splitlines():
+                line = _raw.rstrip()
+                if line:
+                    feedback.pushConsoleInfo(line)
+                if line.startswith('PROGRESO '):
+                    # PROGRESO fase=semantica hechas=7 de=68
+                    _campos = dict(_p.split('=', 1) for _p in line.split()[1:]
+                                   if '=' in _p)
+                    _progress['proto'] = True
+                    try:
+                        _hechas = float(_campos.get('hechas', 0))
+                        _de = float(_campos.get('de', 0))
+                    except ValueError:
+                        _de = 0
+                    if _de > 0:
+                        _frac = min(1.0, _hechas / _de)
+                        if _campos.get('fase') == 'instancias':
+                            feedback.setProgress(55 + 33.0 * _frac)
+                        else:
+                            feedback.setProgress(5 + 50.0 * _frac)
+                elif 'PROCESANDO INSTANCIAS' in line:
+                    _progress['stage'] = 1
+                    _progress['done'] = 0
+                    feedback.setProgress(55)
+                    feedback.pushInfo('Instance segmentation started.')
+                elif line.startswith('Procesando ') and ' en columna ' in line:
+                    # Reserva por si el que trabaja no habla el protocolo PROGRESO.
+                    if not _progress['proto']:
+                        _progress['done'] += 1
+                        if _progress['stage'] == 0:
+                            feedback.setProgress(
+                                5 + 50.0 * min(1.0, _progress['done'] / _cols_semantic))
+                        else:
+                            feedback.setProgress(
+                                55 + 33.0 * min(1.0, _progress['done'] / _cols_instances))
+                elif 'Separando copas' in line:
+                    feedback.setProgress(88)
+                    feedback.pushInfo('Separating crowns over the whole mosaic...')
+                elif 'postprocesamiento' in line.lower():
+                    feedback.setProgress(92)
+                elif line.startswith('Archivo TIFF guardado'):
+                    feedback.setProgress(93)
+            if feedback.isCanceled():
+                _proc.kill()
+
+        _proc.readyReadStandardOutput.connect(_on_output)
+        feedback.pushInfo('Running the models in the isolated environment...')
+        feedback.setProgress(5)
+        _proc.start(_env.venv_python, ["-u", _script.name])
         _proc.waitForFinished(-1)
         _rc = _proc.exitCode()
 
+        if feedback.isCanceled():
+            return {}
+        feedback.setProgress(95)
+
         try:
             os.unlink(_script.name)
-        except Exception:
-            pass
+        except OSError as _err:
+            feedback.pushInfo(
+                "Could not delete the temporary script {}: {}".format(_script.name, _err)
+            )
 
         if _rc != 0:
-            raise RuntimeError("Fallo ejecutando apply_palmeras en el entorno aislado:\n" + "".join(_buf))
+            raise RuntimeError("The models failed in the isolated environment:\n" + "".join(_buf))
 
         # --- Leer salida JSON ---
         _stdout = "".join(_buf).strip().splitlines()
@@ -321,6 +595,31 @@ class DeteccionDePalmerasAlgorithm(QgsProcessingAlgorithm):
         
         if feedback.isCanceled():
             return {}
+        # addOutput por si sola no carga nada: solo los parametros de destino se
+        # registran en el contexto. La mascara de clases se anade a mano para que
+        # aparezca en el lienzo junto al raster de instancias.
+        if OUTPUT_RASTER and os.path.exists(OUTPUT_RASTER):
+            context.addLayerToLoadOnCompletion(
+                OUTPUT_RASTER,
+                QgsProcessingContext.LayerDetails(
+                    self.tr('Detected individuals'),
+                    context.project(),
+                    self.OUTPUT_INDIVIDUALS_DETECTED
+                )
+            )
+            feedback.pushInfo('Detected individuals: {}'.format(OUTPUT_RASTER))
+
+        if OUTPUT_RASTER_CLAS and os.path.exists(OUTPUT_RASTER_CLAS):
+            context.addLayerToLoadOnCompletion(
+                OUTPUT_RASTER_CLAS,
+                QgsProcessingContext.LayerDetails(
+                    self.tr('Detected coverage'),
+                    context.project(),
+                    self.OUTPUT_COVERAGE_DETECTED
+                )
+            )
+            feedback.pushInfo('Detected coverage: {}'.format(OUTPUT_RASTER_CLAS))
+
         c1, c2, c3, OUTPUT_VECTOR, OUTPUT_CENTROIDES,ATRIBUTOS_CSV = palmeras_qgis_count.apply_toolsqgis(OUTPUT_RASTER,OUTPUT_RASTER_CLAS,mau,eut,oeno)
         if feedback.isCanceled():
             return {}
@@ -329,18 +628,45 @@ class DeteccionDePalmerasAlgorithm(QgsProcessingAlgorithm):
         if feedback.isCanceled():
             return {}
         
+        # Los vectores se generan despues de registrar las salidas raster, asi que
+        # tambien hay que anadirlos a mano para que aparezcan en el lienzo.
+        for ruta, titulo, clave in (
+                (OUTPUT_VECTOR, self.tr('Detected palms (polygons)'),
+                 self.OUTPUT_VECTOR),
+                (OUTPUT_CENTROIDES, self.tr('Detected palms (centroids)'),
+                 self.OUTPUT_CENTROIDES)):
+            if ruta and os.path.exists(ruta):
+                context.addLayerToLoadOnCompletion(
+                    ruta,
+                    QgsProcessingContext.LayerDetails(titulo, context.project(), clave)
+                )
+                feedback.pushInfo('{}: {}'.format(titulo, ruta))
+
         # MOSTRAR RESULTADOS EN EL LOG
         feedback.pushInfo("═" * 50)
-        feedback.pushInfo("RESULTADOS DE DETECCIÓN DE PALMERAS")
+        feedback.pushInfo("PALM DETECTION RESULTS")
         feedback.pushInfo("═" * 50)
-        feedback.pushInfo(f"Mauritia flexuosa: {c1} individuos, Área: {ca1:.2f} ha")
-        feedback.pushInfo(f"Euterpe precautoria: {c2} individuos, Área: {ca2:.2f} ha") 
-        feedback.pushInfo(f"Oenocarpus bataua: {c3} individuos, Área: {ca3:.2f} ha")
+        feedback.pushInfo(f"Mauritia flexuosa: {c1} individuals, area: {ca1:.2f} ha")
+        feedback.pushInfo(f"Euterpe precatoria: {c2} individuals, area: {ca2:.2f} ha")
+        feedback.pushInfo(f"Oenocarpus bataua: {c3} individuals, area: {ca3:.2f} ha")
         feedback.pushInfo("═" * 50)
-        feedback.pushInfo(f"TOTAL DETECTADO: {c1 + c2 + c3} palmeras")
+        feedback.pushInfo(f"TOTAL DETECTED: {c1 + c2 + c3} palms")
+        feedback.pushInfo("=" * 50)
+        feedback.pushInfo("Pixel values in the output rasters:")
+        feedback.pushInfo("  Detected coverage    Byte, nodata 0 - 0 background, "
+                          "1 Mauritia flexuosa, 2 Euterpe precatoria, 3 Oenocarpus bataua")
+        feedback.pushInfo("  Detected individuals Float32, nodata 0 (transparent) - "
+                          "15 Mauritia flexuosa, 25 Euterpe precatoria, 35 Oenocarpus bataua")
+        feedback.pushInfo("  Overlapping windows combined by score, so no straight "
+                          "seams where two windows disagreed.")
+        feedback.pushInfo("  Touching crowns cut apart at their narrowest point; each "
+                          "crown is written at the size the depth map gives it, not "
+                          "grown to fill the coverage mask.")
         feedback.pushInfo("═" * 50)
 
-        return {self.OUTPUT_RASTER: OUTPUT_RASTER,
+        _results = {self.OUTPUT_FOLDER: OUTPUT_FOLDER,
+                self.OUTPUT_INDIVIDUALS_DETECTED: OUTPUT_RASTER,
+                self.OUTPUT_COVERAGE_DETECTED: OUTPUT_RASTER_CLAS,
                 self.NMAURITIA: c1,
                 self.AMAURITIA: ca1,
                 self.NEUTERPE: c2,
@@ -351,6 +677,7 @@ class DeteccionDePalmerasAlgorithm(QgsProcessingAlgorithm):
                 self.OUTPUT_CENTROIDES:OUTPUT_CENTROIDES,
                 self.ATRIBUTOS_CSV:ATRIBUTOS_CSV,
                 self.REPORTE_CSV:REPORTE_CSV}
+        return _results
         """return {self.OUTPUT: dest_id}"""
 
 
@@ -369,7 +696,8 @@ class DeteccionDePalmerasAlgorithm(QgsProcessingAlgorithm):
         Returns the translated algorithm name, which should be used for any
         user-visible display of the algorithm name.
         """
-        return self.tr(self.name())
+        # name() stays as it is: it is the algorithm id and other code calls it.
+        return self.tr('Palm detection')
 
     def group(self):
         """
@@ -387,6 +715,62 @@ class DeteccionDePalmerasAlgorithm(QgsProcessingAlgorithm):
         formatting characters.
         """
         return ''
+
+    def shortHelpString(self):
+        return self.tr(
+            'Sample data to try it out: <a href="https://drive.usercontent.google.com/download?id=1M0InACMTYHncYy-s0uxU0w7_mp9eceB2&export=download">download the test imagery</a>.'
+            '<br><br>'
+            'Detects three Amazonian palm species in RGB imagery acquired with RPAs: '
+            'aguaje (Mauritia flexuosa), huasai (Euterpe precatoria) and ungurahui '
+            '(Oenocarpus bataua).\n\n'
+            'Two models run one after the other. The first segments the canopy into '
+            'species classes; the second separates that coverage into individual '
+            'crowns. Everything is written to the output folder you choose, and the '
+            'rasters and vectors are added to the canvas when the run finishes.\n\n'
+            'WHAT THE RUN WRITES\n\n'
+            'detected_coverage.tif - where each species is, without separating '
+            'individuals. Byte, nodata 0. Pixel values: 0 background, 1 Mauritia '
+            'flexuosa (aguaje), 2 Euterpe precatoria (huasai), 3 Oenocarpus bataua '
+            '(ungurahui).\n\n'
+            'detected_individuals.tif - the crowns, one by one. Float32, nodata 0, so '
+            'the background is transparent when the layer loads. Pixel values: 15 '
+            'Mauritia flexuosa, 25 Euterpe precatoria, 35 Oenocarpus bataua. Every '
+            'connected group of pixels sharing a value is ONE crown; neighbouring '
+            'crowns are kept apart by a one pixel gap, which is what makes them '
+            'countable. Painted in a single colour they look joined, so to see them '
+            'apart use the polygons, or a random colour ramp.\n\n'
+            'detected_individuals_polygons.shp - one polygon per crown, with the fields '
+            'CLASE (1, 2 or 3), ESPECIE (the name), AREA(m2), and UTM(ESTE) / '
+            'UTM(NORTE) for the centre.\n\n'
+            'detected_individuals_centroids.shp - the same crowns as points, one per '
+            'crown, with the same fields. Handy for counting, for joining to field '
+            'data, or for a density map.\n\n'
+            'detected_individuals_attributes.csv - the polygon attribute table as '
+            'text: one row per crown.\n\n'
+            'detected_individuals_report.csv - the summary: how many crowns and how '
+            'many hectares per species.\n\n'
+            'detected_coverage_polygons.shp - the coverage as polygons, one per '
+            'patch of a species rather than one per crown. This is where the '
+            'hectares in the report come from.\n\n'
+            'The counts and the areas per species also come back as algorithm outputs, '
+            'so they can be chained in a model.\n\n'
+            'HOW IT PROCESSES\n\n'
+            'The raster never enters the models whole: it is read in overlapping '
+            'windows and the predictions are combined by score, so no seams appear '
+            'where two windows disagreed. The window parameters control that grid, and '
+            'the log reports it - number of windows, inferences and memory per batch - '
+            'before any model runs.\n\n'
+            'Crowns are separated from the depth map the second model produces: the '
+            'high part of each crown is kept, and where two crowns share it, the join '
+            'is cut at its narrowest point. Nothing is grown afterwards, so a crown is '
+            'written at the size the model gives it, which is smaller than its full '
+            'canopy footprint.\n\n'
+            'Requires the isolated environment and the ONNX models: open "Palm '
+            'dependencies" first if the run stops asking for them.'
+        )
+
+    def shortDescription(self):
+        return self.tr('Detects aguaje, huasai and ungurahui palms in RPA imagery.')
 
     def tr(self, string):
         return QCoreApplication.translate('Processing', string)

@@ -10,10 +10,10 @@ from qgis.PyQt.QtCore import QVariant
 
 def apply_toolsqgis(OUTPUT_RASTER,name_mask_clas,mau,eut,oeno):
 
-    OUTPUT_VEC = os.path.join(OUTPUT_RASTER.split('.')[0] + '_poly.shp')
-    OUTPUT_CEN = os.path.join(OUTPUT_RASTER.split('.')[0] + '_centroides.shp')
-    OUTPUT_CSV = os.path.join(OUTPUT_RASTER.split('.')[0] + '_atributos.csv')
-    OUTPUT_REPORT = os.path.join(OUTPUT_RASTER.split('.')[0] + '_reporte.csv')
+    OUTPUT_VEC = os.path.join(OUTPUT_RASTER.split('.')[0] + '_polygons.shp')
+    OUTPUT_CEN = os.path.join(OUTPUT_RASTER.split('.')[0] + '_centroids.shp')
+    OUTPUT_CSV = os.path.join(OUTPUT_RASTER.split('.')[0] + '_attributes.csv')
+    OUTPUT_REPORT = os.path.join(OUTPUT_RASTER.split('.')[0] + '_report.csv')
 
     raster_source = QgsRasterLayer(OUTPUT_RASTER)
     #Poligonize
@@ -33,13 +33,13 @@ def apply_toolsqgis(OUTPUT_RASTER,name_mask_clas,mau,eut,oeno):
     feats= vlayer.getFeatures()
     dfeats =[]
     #Remove features=0
-    if caps & QgsVectorDataProvider.DeleteFeatures:
+    if caps & QgsVectorDataProvider.Capability.DeleteFeatures:
         for feat in feats:
             if feat['ID'] == 0 :
                 dfeats.append(feat.id())
         res = vlayer.dataProvider().deleteFeatures(dfeats)
     #Add  Fields
-    if caps & QgsVectorDataProvider.AddAttributes:
+    if caps & QgsVectorDataProvider.Capability.AddAttributes:
         res = vlayer.dataProvider().addAttributes([QgsField('CLASE', QVariant.Int),
                                                    QgsField('ESPECIE', QVariant.String),
                                                    QgsField('ÁREA(m2)', QVariant.Double),
@@ -53,7 +53,7 @@ def apply_toolsqgis(OUTPUT_RASTER,name_mask_clas,mau,eut,oeno):
     ca1=0 #sum all the area
     ca2=0
     ca3=0
-    if caps & QgsVectorDataProvider.ChangeAttributeValues:
+    if caps & QgsVectorDataProvider.Capability.ChangeAttributeValues:
         for i in range(0, fc):
             feat = vlayer.getFeature(i)
             geom = feat.geometry()
@@ -145,7 +145,7 @@ def apply_toolsqgis(OUTPUT_RASTER,name_mask_clas,mau,eut,oeno):
     feats= vlayer.getFeatures()
     dfeats =[]
 
-    if caps & QgsVectorDataProvider.DeleteFeatures:
+    if caps & QgsVectorDataProvider.Capability.DeleteFeatures:
         for feat in feats:
             if feat['CLASS_ID'] == 0 :
                 dfeats.append(feat.id())
