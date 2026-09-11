@@ -697,7 +697,7 @@ class DeteccionDePalmerasAlgorithm(QgsProcessingAlgorithm):
         user-visible display of the algorithm name.
         """
         # name() stays as it is: it is the algorithm id and other code calls it.
-        return self.tr('Palm detection')
+        return self.tr('PalmsCNN - Palm Tree Detection RPAs')
 
     def group(self):
         """

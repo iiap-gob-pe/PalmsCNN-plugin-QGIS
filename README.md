@@ -3,6 +3,9 @@
 [![QGIS](https://img.shields.io/badge/QGIS-3.34%2B-green.svg)](https://qgis.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-success.svg)]()
+[![Download](https://img.shields.io/badge/download-QGIS%20Plugin%20Repository-brightgreen.svg)](https://plugins.qgis.org/plugins/deteccion_de_palmeras/)
+
+**Download the plugin:** https://plugins.qgis.org/plugins/deteccion_de_palmeras/
 
 **PalmsCNN** is a QGIS plugin that applies **Deep Learning models** to automatically detect three ecologically and economically important Amazonian palm species:  
 **aguaje/buriti** (*Mauritia flexuosa*), **huasai/acai** (*Euterpe precatoria*), and **ungurahui/patawa** (*Oenocarpus bataua*)  
@@ -89,7 +92,7 @@ The plugin enables automated, reproducible, and cost-efficient mapping of Amazon
 ## 📦 Installation
 
 ### 🔹 From ZIP (for end users)
-1. Download the latest release from [Releases](https://plugins.qgis.org/plugins/deteccion_de_palmeras).  
+1. Download the latest release from the [QGIS Plugin Repository](https://plugins.qgis.org/plugins/deteccion_de_palmeras/).  
 2. In QGIS, open:  
    `Plugins → Manage and Install Plugins → Install from ZIP`.  
 3. Select the file:  
