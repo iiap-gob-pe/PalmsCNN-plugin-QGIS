@@ -126,7 +126,7 @@ Iquitos, Peru
 
 ## 🧾 License
 
-This project is distributed under the [MIT License](./LICENSE).
+This project is distributed under the [[GNU General Public License v2.0 or later]](./LICENSE).
 
 > © 2025 Instituto de Investigaciones de la Amazonía Peruana (IIAP).
 > Free for scientific, educational, and conservation use.
